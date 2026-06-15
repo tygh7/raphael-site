@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Faction, SpaceShip, Laser, Particle, Asteroid, GameState, ShipDef } from '../types/space';
+import { Faction, SpaceShip, Laser, Particle, Asteroid, GameState } from '../types/space';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { LIGHT_SHIPS, DARK_SHIPS, getShipDefById } from '../utils/spaceShips';
-import { Swords, Shield, Zap, RefreshCw, Skull, Star, Play } from 'lucide-react';
+import { Shield, Skull } from 'lucide-react';
 
 interface SpaceCanvasProps {
   faction: Faction;
@@ -11,11 +11,11 @@ interface SpaceCanvasProps {
   onExit: () => void;
 }
 
-const WORLD_SIZE = 4000;
-const INITIAL_ASTEROIDS = 25;
-const INITIAL_ALLIES = 6;
-const INITIAL_ENEMIES = 8;
-const LASER_SPEED = 14;
+const WORLD_SIZE = 8000;
+const INITIAL_ASTEROIDS = 80;
+const INITIAL_ALLIES = 12;
+const INITIAL_ENEMIES = 15;
+const LASER_SPEED = 7.5;
 
 export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   faction,
@@ -42,6 +42,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   });
 
   const [isDead, setIsDead] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
+  const [pauseSelect, setPauseSelect] = useState<'resume' | 'quit'>('resume');
+
+  // Dynamic canvas size state
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 800, height: 600 });
 
   // Screen shake timer/amplitude
   const screenShake = useRef({ duration: 0, amplitude: 0 });
@@ -61,29 +67,58 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   });
 
   // Parallax stars background (pre-generated)
-  const starsBackground = useRef<{ x: number; y: number; size: number; speed: number }[]>([]);
+  const starsBackground = useRef<{ x: number; y: number; size: number; speed: number; color: string }[]>([]);
   const nebulas = useRef<{ x: number; y: number; r: number; color: string }[]>([]);
 
-  // Initialize background starfields once
+  // Sync ref with pause state
   useEffect(() => {
-    // Stars layers
-    const stars: { x: number; y: number; size: number; speed: number }[] = [];
-    for (let i = 0; i < 350; i++) {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  // Hide body scrollbars during battle
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  // Handle window resizing
+  useEffect(() => {
+    const handleResize = () => {
+      setCanvasDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Initialize background starfields once (Galaga style colored chunky stars)
+  useEffect(() => {
+    const stars: { x: number; y: number; size: number; speed: number; color: string }[] = [];
+    const colors = ['#ffffff', '#ffffff', '#eab308', '#38bdf8', '#ef4444', '#ca8a04', '#a855f7'];
+    for (let i = 0; i < 450; i++) {
       stars.push({
-        x: Math.random() * 2000, // repeated tiling coordinates
-        y: Math.random() * 2000,
-        size: Math.random() < 0.25 ? 2.0 : 1.0,
-        speed: Math.random() < 0.3 ? 0.35 : 0.15 // Parallax speeds
+        x: Math.random() * 3000, // wider distribution
+        y: Math.random() * 3000,
+        size: Math.random() < 0.25 ? 3.0 : 1.5, // Chunky pixel stars
+        speed: Math.random() < 0.35 ? 0.3 : 0.12, // Parallax layers
+        color: colors[Math.floor(Math.random() * colors.length)]
       });
     }
     starsBackground.current = stars;
 
-    // Nebulas
+    // Subtle tactical nebulas
     nebulas.current = [
-      { x: 800, y: 800, r: 400, color: 'rgba(99, 102, 241, 0.08)' }, // Purple
-      { x: 2800, y: 1200, r: 600, color: 'rgba(239, 68, 68, 0.06)' }, // Red
-      { x: 1500, y: 3000, r: 500, color: 'rgba(16, 185, 129, 0.06)' }, // Green
-      { x: 3200, y: 2800, r: 450, color: 'rgba(14, 165, 233, 0.08)' }  // Blue
+      { x: 1500, y: 1500, r: 800, color: 'rgba(99, 102, 241, 0.05)' },
+      { x: 5500, y: 2500, r: 1000, color: 'rgba(239, 68, 68, 0.04)' },
+      { x: 3000, y: 6000, r: 900, color: 'rgba(16, 185, 129, 0.04)' },
+      { x: 6500, y: 5500, r: 850, color: 'rgba(14, 165, 233, 0.05)' }
     ];
   }, []);
 
@@ -97,7 +132,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const py = game.current.playerShip?.y || WORLD_SIZE / 2;
     
     const angle = Math.random() * Math.PI * 2;
-    const dist = 600 + Math.random() * 800; // Spawns offscreen
+    const dist = 900 + Math.random() * 1100; // Spawns offscreen
 
     const x = Math.max(100, Math.min(WORLD_SIZE - 100, px + Math.cos(angle) * dist));
     const y = Math.max(100, Math.min(WORLD_SIZE - 100, py + Math.sin(angle) * dist));
@@ -109,8 +144,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       faction: fact,
       x,
       y,
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: (Math.random() - 0.5) * 1.5,
       angle: Math.random() * Math.PI * 2,
       hp: def.stats.shield,
       maxHp: def.stats.shield,
@@ -123,21 +158,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     };
   };
 
-  // Helper to trigger particles
+  // Helper to trigger particles (chunkier retro explosion fragments)
   const spawnExplosion = (x: number, y: number, color: string, count = 20) => {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1 + Math.random() * 5;
+      const speed = 0.5 + Math.random() * 3; // slower explosion fragments
       game.current.particles.push({
         id: `p_${Math.random()}`,
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 30 + Math.floor(Math.random() * 20),
+        life: 25 + Math.floor(Math.random() * 25),
         maxLife: 50,
         color,
-        size: 1.5 + Math.random() * 3
+        size: Math.random() < 0.3 ? 4 : 2 // retro pixel chunks
       });
     }
   };
@@ -172,6 +207,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     game.current.score = 0;
     game.current.kills = 0;
     setIsDead(false);
+    setIsPaused(false);
 
     // 2. Spawn Asteroids
     const asteroids: Asteroid[] = [];
@@ -180,9 +216,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         id: `ast_${i}`,
         x: Math.random() * WORLD_SIZE,
         y: Math.random() * WORLD_SIZE,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: (Math.random() - 0.5) * 1.5,
-        size: 3, // Start large
+        vx: (Math.random() - 0.5) * 0.7, // slower asteroids
+        vy: (Math.random() - 0.5) * 0.7,
+        size: Math.floor(Math.random() * 3) + 1,
         hp: 40
       });
     }
@@ -207,11 +243,39 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Set keyboard / mouse listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle pause if ESC is pressed and player is alive
+      if (e.code === 'Escape') {
+        if (game.current.playerShip && game.current.playerShip.hp > 0 && !isDead) {
+          setIsPaused(prev => !prev);
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // Handle pause menu navigation
+      if (isPausedRef.current) {
+        if (e.code === 'ArrowDown' || e.code === 'ArrowUp' || e.code === 'KeyS' || e.code === 'KeyW') {
+          setPauseSelect(prev => prev === 'resume' ? 'quit' : 'resume');
+          e.preventDefault();
+        } else if (e.code === 'Enter') {
+          if (pauseSelect === 'resume') {
+            setIsPaused(false);
+          } else {
+            setIsPaused(false);
+            onExit();
+          }
+          e.preventDefault();
+        }
+        return;
+      }
+
       keysPressed.current[e.code] = true;
     };
+
     const handleKeyUp = (e: KeyboardEvent) => {
       keysPressed.current[e.code] = false;
     };
+
     const handleMouseMove = (e: MouseEvent) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -221,9 +285,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         y: e.clientY - rect.top
       };
     };
+
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) isMouseDown.current = true;
     };
+
     const handleMouseUp = (e: MouseEvent) => {
       if (e.button === 0) isMouseDown.current = false;
     };
@@ -241,7 +307,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, []);
+  }, [pauseSelect, isDead]);
 
   // Main 60fps Game Tick Loop
   useEffect(() => {
@@ -259,6 +325,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Physics Updates
   const updateGamePhysics = () => {
+    if (isPausedRef.current) return;
     const state = game.current;
     if (!state.playerShip) return;
 
@@ -272,10 +339,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     if (player.hp > 0) {
       let ax = 0;
       let ay = 0;
-      const accel = 0.35; // Thruster acceleration
+      const accel = 0.16; // Slower thrusters acceleration (Tactical Galaga-like feel)
 
-      // ZQSD movement (absolute movement Twin-Stick style)
-      // W / Z: Up, S: Down, A / Q: Left, D: Right
+      // ZQSD movement
       if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
         ay = -accel;
       }
@@ -294,14 +360,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vy += ay;
 
       // Friction/Damping
-      player.vx *= 0.95;
-      player.vy *= 0.95;
+      player.vx *= 0.96;
+      player.vy *= 0.96;
 
-      // Speed clamp
+      // Speed clamp - Slower base movement speed (x 0.45 stats scaling)
+      const maxSpeed = player.stats.speed * 0.45;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-      if (currentSpeed > player.stats.speed) {
-        player.vx = (player.vx / currentSpeed) * player.stats.speed;
-        player.vy = (player.vy / currentSpeed) * player.stats.speed;
+      if (currentSpeed > maxSpeed) {
+        player.vx = (player.vx / currentSpeed) * maxSpeed;
+        player.vy = (player.vy / currentSpeed) * maxSpeed;
       }
 
       // Update position
@@ -329,17 +396,17 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           id: `p_${Math.random()}`,
           x: player.x - Math.cos(player.angle) * 16,
           y: player.y - Math.sin(player.angle) * 16,
-          vx: Math.cos(flameAngle) * 3 + player.vx,
-          vy: Math.sin(flameAngle) * 3 + player.vy,
+          vx: Math.cos(flameAngle) * 1.5 + player.vx, // slower flames
+          vy: Math.sin(flameAngle) * 1.5 + player.vy,
           life: 10 + Math.floor(Math.random() * 10),
           maxLife: 20,
           color: player.faction === 'light' ? '#38bdf8' : '#ef4444',
-          size: 1 + Math.random() * 2
+          size: Math.random() < 0.5 ? 3 : 1.5
         });
       }
 
-      // Shoot trigger
-      if (isMouseDown.current) {
+      // Shoot trigger - Left click or key "i" (KeyI)
+      if (isMouseDown.current || keysPressed.current['KeyI']) {
         const now = Date.now();
         if (now - player.lastShotTime >= player.stats.rate) {
           fireLaser(player);
@@ -362,7 +429,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
         // 1. Scan for nearest target of opposite faction
         let nearestTarget: SpaceShip | null = null;
-        let minDist = 900; // Agro range
+        let minDist = 1200; // Expanded Agro range
 
         state.ships.forEach(t => {
           if (t.faction !== ship.faction && t.hp > 0) {
@@ -396,17 +463,17 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           // Steer towards target gradually
           const targetAngle = Math.atan2(dy, dx);
           let diff = targetAngle - ship.angle;
-          // Normalize diff [-PI, PI]
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
-          ship.angle += diff * 0.1; // Slerp speed
+          ship.angle += diff * 0.08; // slower turn rate
 
           // Thruster acceleration
-          const accelSpeed = ship.stats.speed * 0.08;
-          if (dist > 250) {
+          const aiMaxSpeed = ship.stats.speed * 0.45;
+          const accelSpeed = aiMaxSpeed * 0.06;
+          if (dist > 300) {
             ship.vx += Math.cos(ship.angle) * accelSpeed;
             ship.vy += Math.sin(ship.angle) * accelSpeed;
-          } else if (dist < 120) {
+          } else if (dist < 150) {
             // Back up
             ship.vx -= Math.cos(ship.angle) * accelSpeed;
             ship.vy -= Math.sin(ship.angle) * accelSpeed;
@@ -414,13 +481,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
           // Random strafing
           if (Math.random() < 0.05) {
-            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 3;
-            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 3;
+            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
+            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
           }
 
           // Shoot AI weapon
           const now = Date.now();
-          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.2 + Math.random() * 0.5)) {
+          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.3 + Math.random() * 0.6)) {
             fireLaser(ship);
             ship.lastShotTime = now;
           }
@@ -428,20 +495,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       } else {
         // Patrol / Drift randomly
         if (Math.random() < 0.02) {
-          ship.angle += (Math.random() - 0.5) * 1.5;
+          ship.angle += (Math.random() - 0.5) * 1.2;
         }
-        const speed = ship.stats.speed * 0.3;
-        ship.vx += Math.cos(ship.angle) * 0.15;
-        ship.vy += Math.sin(ship.angle) * 0.15;
+        ship.vx += Math.cos(ship.angle) * 0.07;
+        ship.vy += Math.sin(ship.angle) * 0.07;
       }
 
       // Physics integration
-      ship.vx *= 0.95;
-      ship.vy *= 0.95;
+      ship.vx *= 0.96;
+      ship.vy *= 0.96;
       const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      if (spd > ship.stats.speed) {
-        ship.vx = (ship.vx / spd) * ship.stats.speed;
-        ship.vy = (ship.vy / spd) * ship.stats.speed;
+      const aiMaxSpeed = ship.stats.speed * 0.45;
+      if (spd > aiMaxSpeed) {
+        ship.vx = (ship.vx / spd) * aiMaxSpeed;
+        ship.vy = (ship.vy / spd) * aiMaxSpeed;
       }
 
       ship.x += ship.vx;
@@ -464,9 +531,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       let hit = false;
       for (const ship of state.ships) {
         if (ship.hp <= 0) continue;
-        // Do not friendly fire
-        if (ship.faction === laser.faction && !ship.isPlayer) continue; // AI ignores allies. Player can't shoot allies.
-        if (ship.isPlayer && laser.faction === player.faction) continue; // player doesn't friendly fire own lasers
+        if (ship.faction === laser.faction && !ship.isPlayer) continue; // friendly-fire safety
+        if (ship.isPlayer && laser.faction === player.faction) continue;
 
         const dx = ship.x - laser.x;
         const dy = ship.y - laser.y;
@@ -486,8 +552,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
           // Check fainted ship
           if (ship.hp <= 0) {
-            spawnExplosion(ship.x, ship.y, '#eab308', 35); // Yellow core explosion
-            spawnExplosion(ship.x, ship.y, '#f97316', 25); // Orange secondary
+            spawnExplosion(ship.x, ship.y, '#eab308', 35); // Yellow core
+            spawnExplosion(ship.x, ship.y, '#f97316', 25); // Orange outer
 
             if (ship.isPlayer) {
               setIsDead(true);
@@ -499,9 +565,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 state.score += ship.stats.shield * 10;
               }
               
-              // Respawn new AI ship offscreen to keep fleet count
+              // Respawn AI ship offscreen
               setTimeout(() => {
-                state.ships.push(createRandomAiShip(ship.faction, ship.faction === faction));
+                if (game.current.playerShip) {
+                  state.ships.push(createRandomAiShip(ship.faction, ship.faction === faction));
+                }
               }, 4000);
             }
           }
@@ -522,23 +590,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           ast.hp -= laser.damage;
           hit = true;
 
-          // Sparks
           spawnExplosion(laser.x, laser.y, '#78350f', 5);
 
           if (ast.hp <= 0) {
-            // Break asteroid
             spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
             
             if (ast.size > 1) {
-              // Spawn 2 smaller chunks
               const newSize = ast.size - 1;
               state.asteroids.push(
                 {
                   id: `ast_${ast.id}_1`,
                   x: ast.x + (Math.random() - 0.5) * 20,
                   y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 2,
-                  vy: ast.vy + (Math.random() - 0.5) * 2,
+                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
                   size: newSize,
                   hp: newSize * 15
                 },
@@ -546,14 +611,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                   id: `ast_${ast.id}_2`,
                   x: ast.x + (Math.random() - 0.5) * 20,
                   y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 2,
-                  vy: ast.vy + (Math.random() - 0.5) * 2,
+                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
                   size: newSize,
                   hp: newSize * 15
                 }
               );
             }
-            // Add score
             state.score += ast.size * 50;
           }
           break;
@@ -582,14 +646,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const radius = ast.size * 12 + 16;
 
         if (dist < radius) {
-          // Bounce ship back a bit
+          // Bounce ship
           const pushAngle = Math.atan2(dy, dx);
-          ship.x += Math.cos(pushAngle) * 5;
-          ship.y += Math.sin(pushAngle) * 5;
-          ship.vx += Math.cos(pushAngle) * 2;
-          ship.vy += Math.sin(pushAngle) * 2;
+          ship.x += Math.cos(pushAngle) * 4;
+          ship.y += Math.sin(pushAngle) * 4;
+          ship.vx += Math.cos(pushAngle) * 1.2;
+          ship.vy += Math.sin(pushAngle) * 1.2;
 
-          // Damage ship slightly
           ship.hp = Math.max(0, ship.hp - ast.size * 3);
           
           if (ship.isPlayer) {
@@ -600,7 +663,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       });
     });
 
-    // Clean up dead/exhausted asteroids
     state.asteroids = state.asteroids.filter(a => a.hp > 0);
 
     // --- 6. Update Particles ---
@@ -611,10 +673,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       return p.life > 0;
     });
 
-    // Clean up dead ships
+    // Clean up dead AI
     state.ships = state.ships.filter(s => s.isPlayer || s.hp > 0);
 
-    // --- 7. Sync HUD details ---
+    // --- 7. Sync HUD ---
     setHud({
       hp: player.hp,
       maxHp: player.maxHp,
@@ -632,7 +694,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     
     // Millennium Falcon has dual turrets!
     if (ship.defId === 'falcon') {
-      // Shoot two parallel lasers offset left/right
       const offsetL = ship.angle - Math.PI / 2;
       const offsetR = ship.angle + Math.PI / 2;
       
@@ -671,7 +732,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       );
     } else {
-      // Standard single shot
       const lx = ship.x + Math.cos(ship.angle) * 20;
       const ly = ship.y + Math.sin(ship.angle) * 20;
       const vx = Math.cos(ship.angle) * LASER_SPEED;
@@ -709,7 +769,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ctx.translate(dx, dy);
     }
 
-    // Camera center offset (relative to player)
     const player = game.current.playerShip;
     if (!player) {
       ctx.restore();
@@ -720,7 +779,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const offsetY = canvas.height / 2 - player.y;
 
     // 1. Draw Space Void (Dark background)
-    ctx.fillStyle = '#050508';
+    ctx.fillStyle = '#030307';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 2. Draw Nebula clouds
@@ -730,97 +789,115 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       
       const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, neb.r);
       grad.addColorStop(0, neb.color);
-      grad.addColorStop(1, 'rgba(5, 5, 8, 0)');
+      grad.addColorStop(1, 'rgba(3, 3, 7, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(sx, sy, neb.r, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // 3. Draw Parallax Starfield
-    ctx.fillStyle = '#ffffff';
+    // 3. Draw Parallax Starfield (Chunky flashing Galaga colors)
     starsBackground.current.forEach(star => {
-      // Parallax scroll: offset is modulated by camera position multiplied by speed
       const sx = ((star.x - player.x * star.speed) % canvas.width + canvas.width) % canvas.width;
       const sy = ((star.y - player.y * star.speed) % canvas.height + canvas.height) % canvas.height;
       
-      ctx.fillRect(sx, sy, star.size, star.size);
+      ctx.fillStyle = star.color;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), star.size, star.size);
     });
 
-    // 4. Draw World Boundary Fence
-    ctx.strokeStyle = faction === 'light' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)';
-    ctx.lineWidth = 4;
+    // 4. Draw Scrolling Tactical Radar Coordinates Grid (Retro Star Wars aesthetic)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
+    ctx.lineWidth = 1.2;
+    const gridSpacing = 160; // wider space grid
+    const startX = Math.floor(-offsetX / gridSpacing) * gridSpacing;
+    const endX = startX + canvas.width + gridSpacing;
+    const startY = Math.floor(-offsetY / gridSpacing) * gridSpacing;
+    const endY = startY + canvas.height + gridSpacing;
+
+    for (let x = startX; x < endX; x += gridSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(x + offsetX, 0);
+      ctx.lineTo(x + offsetX, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = startY; y < endY; y += gridSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + offsetY);
+      ctx.lineTo(canvas.width, y + offsetY);
+      ctx.stroke();
+    }
+
+    // 5. Draw World Boundary Fence (Glowing neon grid lines)
+    ctx.strokeStyle = faction === 'light' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+    ctx.lineWidth = 5;
     ctx.strokeRect(offsetX, offsetY, WORLD_SIZE, WORLD_SIZE);
 
-    // 5. Draw Asteroids
+    // 6. Draw Asteroids (Chunky flat pixel-art rocks)
     game.current.asteroids.forEach(ast => {
       const sx = ast.x + offsetX;
       const sy = ast.y + offsetY;
       const r = ast.size * 12;
 
-      // Draw rocky circle
-      ctx.fillStyle = '#374151';
-      ctx.strokeStyle = '#1f2937';
-      ctx.lineWidth = 2;
+      ctx.fillStyle = '#27272a';
+      ctx.strokeStyle = '#18181b';
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Craters details
-      ctx.fillStyle = '#111827';
+      // Flat craters
+      ctx.fillStyle = '#09090b';
       ctx.beginPath();
-      ctx.arc(sx - r * 0.3, sy - r * 0.2, r * 0.2, 0, Math.PI * 2);
-      ctx.arc(sx + r * 0.4, sy + r * 0.3, r * 0.15, 0, Math.PI * 2);
+      ctx.arc(sx - r * 0.35, sy - r * 0.15, r * 0.25, 0, Math.PI * 2);
+      ctx.arc(sx + r * 0.4, sy + r * 0.3, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // 6. Draw Lasers
+    // 7. Draw Lasers (Chunky arcade strokes)
     game.current.lasers.forEach(laser => {
       const sx = laser.x + offsetX;
       const sy = laser.y + offsetY;
 
       ctx.strokeStyle = laser.color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      // Draw standard tail lines
       ctx.moveTo(sx, sy);
-      ctx.lineTo(sx - (laser.vx / LASER_SPEED) * 16, sy - (laser.vy / LASER_SPEED) * 16);
+      ctx.lineTo(sx - (laser.vx / LASER_SPEED) * 20, sy - (laser.vy / LASER_SPEED) * 20);
       ctx.stroke();
     });
 
-    // 7. Draw Fleet Ships (AI & Player)
+    // 8. Draw Fleet Ships (AI & Player)
     game.current.ships.forEach(ship => {
       if (ship.hp <= 0) return;
       const sx = ship.x + offsetX;
       const sy = ship.y + offsetY;
 
-      // Draw custom pixel model
       drawPixelShip(
         ctx,
         sx,
         sy,
-        ship.isPlayer ? 24 : 20,
+        ship.isPlayer ? 26 : 21, // slightly bigger player ship
         ship.angle,
         ship.defId,
         ship.faction,
         ship.color,
-        Math.abs(ship.vx) > 0.5 || Math.abs(ship.vy) > 0.5
+        Math.abs(ship.vx) > 0.3 || Math.abs(ship.vy) > 0.3
       );
 
-      // Draw mini health bar above AI ships
+      // Draw health indicators
       if (!ship.isPlayer) {
         const hpPct = ship.hp / ship.maxHp;
         const barW = 28;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(sx - barW / 2, sy - 22, barW, 4);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(sx - barW / 2, sy - 24, barW, 4);
 
         ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
-        ctx.fillRect(sx - barW / 2, sy - 22, barW * hpPct, 3);
+        ctx.fillRect(sx - barW / 2, sy - 24, barW * hpPct, 3);
       }
     });
 
-    // 8. Draw Particles
+    // 9. Draw Explosion Particles (Chunky pixels)
     game.current.particles.forEach(p => {
       const sx = p.x + offsetX;
       const sy = p.y + offsetY;
@@ -832,7 +909,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
     ctx.globalAlpha = 1.0;
 
-    // 9. Draw HUD locator markers for offscreen targets
+    // 10. Draw offscreen indicators
     game.current.ships.forEach(ship => {
       if (ship.isPlayer || ship.hp <= 0) return;
       
@@ -840,24 +917,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const dy = ship.y - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      // Only draw locator pointers for off-screen ships within reasonable proximity (1500px)
-      if (dist > canvas.width / 2 && dist < 1800) {
+      if (dist > canvas.width / 2 && dist < 2200) {
         const angle = Math.atan2(dy, dx);
-        
-        // Project onto border of screen
-        const margin = 24;
+        const margin = 32;
         const rx = canvas.width / 2 + Math.cos(angle) * (canvas.width / 2 - margin);
         const ry = canvas.height / 2 + Math.sin(angle) * (canvas.height / 2 - margin);
 
-        // Draw small pointer arrow
         ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
         ctx.save();
         ctx.translate(rx, ry);
         ctx.rotate(angle);
         ctx.beginPath();
-        ctx.moveTo(6, 0);
-        ctx.lineTo(-4, -6);
-        ctx.lineTo(-4, 6);
+        ctx.moveTo(8, 0);
+        ctx.lineTo(-6, -7);
+        ctx.lineTo(-6, 7);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
@@ -874,46 +947,71 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const shieldPercent = (hud.hp / hud.maxHp) * 100;
 
   return (
-    <div className="w-full flex flex-col items-center gap-4">
-      {/* HUD Bar */}
-      <div className="w-full max-w-[760px] flex items-center justify-between px-4 py-2 bg-zinc-950/80 border border-zinc-850 rounded-xl text-xs font-semibold tracking-wide backdrop-blur-md">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5 font-mono text-zinc-400">
-            SCORE: <span className="text-white font-bold">{hud.score}</span>
+    <div className="fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-[#020205] flex flex-col select-none pixel-font crt-effect">
+      <style>{`
+        .crt-effect::after {
+          content: " ";
+          display: block;
+          position: absolute;
+          top: 0; left: 0; bottom: 0; right: 0;
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+          background-size: 100% 3px;
+          z-index: 20;
+          pointer-events: none;
+          opacity: 0.4;
+        }
+        .crt-glow {
+          text-shadow: 0 0 6px rgba(255, 255, 255, 0.4), 0 0 12px currentColor;
+        }
+        .pixel-font {
+          font-family: 'Courier New', Courier, monospace;
+        }
+      `}</style>
+
+      {/* Full-Screen HUD Overlay Header */}
+      <div className="absolute top-4 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
+        {/* Score & Kills */}
+        <div className="flex gap-8 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md">
+          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+            SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span>
           </span>
-          <span className="flex items-center gap-1.5 font-mono text-zinc-400">
-            KILLS: <span className="text-emerald-400 font-bold">{hud.kills}</span>
+          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+            KILLS: <span className="text-emerald-400 font-bold crt-glow">{hud.kills}</span>
           </span>
         </div>
 
-        <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500 uppercase">
-          <span className="flex items-center gap-1 text-emerald-400/80">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Allies: {hud.alliesCount}
+        {/* Faction fleet count */}
+        <div className="flex gap-4 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] uppercase font-bold">
+          <span className="flex items-center gap-1.5 text-emerald-400">
+            ALLIES: {hud.alliesCount}
           </span>
-          <span className="flex items-center gap-1 text-rose-500/80">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-            Enemies: {hud.enemiesCount}
-          </span>
-          <span className="text-zinc-400">
-            Thruster: {hud.speed} km/s
+          <span className="flex items-center gap-1.5 text-rose-500">
+            ENEMIES: {hud.enemiesCount}
           </span>
         </div>
       </div>
 
-      {/* Screen Frame */}
-      <div className="relative border-4 border-zinc-800 bg-[#020205] rounded-3xl overflow-hidden shadow-2xl w-full max-w-[760px] aspect-[4/3] flex flex-col">
-        <canvas
-          ref={canvasRef}
-          width={750}
-          height={560}
-          className="w-full h-full cursor-crosshair"
-        />
+      {/* Canvas viewport */}
+      <canvas
+        ref={canvasRef}
+        width={canvasDimensions.width}
+        height={canvasDimensions.height}
+        className="w-full h-full cursor-crosshair block bg-black"
+      />
 
-        {/* Shield Bar Overlay */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[220px] bg-zinc-950/90 border border-zinc-800 rounded-full px-3 py-1 flex items-center gap-2 shadow-2xl backdrop-blur-md">
-          <Shield className={`w-3.5 h-3.5 ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`} />
-          <div className="flex-1 h-2 bg-zinc-900 rounded-full overflow-hidden shadow-inner">
+      {/* Full-Screen HUD Overlay Footer */}
+      <div className="absolute bottom-6 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
+        {/* Thruster Speed */}
+        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] text-zinc-400 font-bold">
+          ENGINE THRUST: <span className="text-white crt-glow">{hud.speed} km/s</span>
+        </div>
+
+        {/* Shield Integrity Meter */}
+        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl backdrop-blur-md w-[280px]">
+          <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>
+            SHIELDS:
+          </span>
+          <div className="flex-1 h-2.5 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
             <div
               className={`h-full transition-all duration-300 ${
                 faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'
@@ -921,55 +1019,102 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               style={{ width: `${shieldPercent}%` }}
             />
           </div>
-          <span className="text-[9px] font-mono font-bold text-white">{hud.hp}</span>
+          <span className="text-[10px] font-bold text-white font-mono">{hud.hp}</span>
         </div>
+      </div>
 
-        {/* Death overlay screen */}
-        {isDead && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 gap-6 animate-in fade-in duration-300">
-            <div className="w-16 h-16 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.3)] animate-pulse">
-              <Skull className="w-8 h-8" />
-            </div>
+      {/* Control Help bar */}
+      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-600 font-bold uppercase tracking-widest pointer-events-none">
+        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Aim: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">MOUSE</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / I</kbd>
+      </div>
 
-            <div className="text-center flex flex-col gap-1.5">
-              <h2 className="text-xl font-extrabold uppercase tracking-widest text-white font-display">
-                STARFIGHTER FAINTED
+      {/* Pause Menu Overlay */}
+      {isPaused && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm p-6 animate-in fade-in duration-200">
+          <div className="border-4 border-double border-zinc-700 bg-zinc-950 p-8 rounded-2xl max-w-[400px] w-full flex flex-col items-center gap-6 shadow-[0_0_50px_rgba(0,0,0,0.9)]">
+            <div className="text-center flex flex-col gap-2">
+              <h2 className="text-2xl font-extrabold uppercase tracking-[0.2em] text-yellow-400 crt-glow animate-pulse">
+                SYSTEM PAUSED
               </h2>
-              <p className="text-xs text-zinc-500 font-mono">
-                Final Kills: {hud.kills} | Score: {hud.score}
+              <p className="text-[10px] text-zinc-500 tracking-widest">
+                --- MISSION STATUS: ON HOLD ---
               </p>
             </div>
 
-            <div className="flex gap-3 w-full max-w-[280px]">
+            <div className="flex flex-col gap-3.5 w-full">
               <button
-                onClick={onExit}
-                className="flex-1 py-2.5 px-4 border border-zinc-850 hover:border-zinc-700 bg-zinc-900 text-[10px] font-bold text-zinc-400 rounded-xl transition-all"
-              >
-                SELECT SHIP
-              </button>
-              <button
-                onClick={handleRespawn}
-                className={`flex-1 py-2.5 px-4 text-[10px] font-bold text-white rounded-xl transition-all ${
-                  faction === 'light'
-                    ? 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                    : 'bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                onClick={() => setIsPaused(false)}
+                onMouseEnter={() => setPauseSelect('resume')}
+                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto ${
+                  pauseSelect === 'resume'
+                    ? 'border-emerald-500 bg-emerald-950/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
                 }`}
               >
-                RESPAWN FIGHTER
+                <span>{pauseSelect === 'resume' ? '► RESUME MISSION' : '  RESUME MISSION'}</span>
+                <span className="text-[9px] text-zinc-600">ESC / ENTER</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsPaused(false);
+                  onExit();
+                }}
+                onMouseEnter={() => setPauseSelect('quit')}
+                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto ${
+                  pauseSelect === 'quit'
+                    ? 'border-rose-500 bg-rose-950/20 text-rose-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
+                }`}
+              >
+                <span>{pauseSelect === 'quit' ? '► ABORT TO HANGAR' : '  ABORT TO HANGAR'}</span>
+                <span className="text-[9px] text-zinc-600">ENTER</span>
               </button>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Control Instruction Pill */}
-      <div className="flex flex-col gap-1 items-center bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 w-full max-w-[760px]">
-        <div className="flex items-center justify-center gap-6 text-zinc-500 font-mono text-[9px] font-semibold uppercase tracking-widest">
-          <span className="flex items-center gap-1 text-zinc-400"><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[9px]">ZQSD</kbd> Navigation</span>
-          <span className="flex items-center gap-1 text-zinc-400"><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[9px]">MOUSE MOVEMENT</kbd> Viser</span>
-          <span className="flex items-center gap-1 text-zinc-400"><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[9px]">LEFT CLICK</kbd> Tirer Laser</span>
+            <div className="text-[9px] text-zinc-600 uppercase tracking-wider text-center mt-2 border-t border-zinc-900 pt-4 w-full">
+              USE <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-850">↑</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-850">↓</kbd> OR MOUSE TO SELECT
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Death overlay screen */}
+      {isDead && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-6 gap-6 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.3)] animate-pulse">
+            <Skull className="w-8 h-8" />
+          </div>
+
+          <div className="text-center flex flex-col gap-1.5">
+            <h2 className="text-xl font-extrabold uppercase tracking-widest text-white crt-glow">
+              STARFIGHTER FAINTED
+            </h2>
+            <p className="text-xs text-zinc-500">
+              Final Kills: {hud.kills} | Score: {hud.score}
+            </p>
+          </div>
+
+          <div className="flex gap-3 w-full max-w-[280px]">
+            <button
+              onClick={onExit}
+              className="flex-1 py-2.5 px-4 border border-zinc-850 hover:border-zinc-700 bg-zinc-900 text-[10px] font-bold text-zinc-400 rounded-xl transition-all"
+            >
+              SELECT SHIP
+            </button>
+            <button
+              onClick={handleRespawn}
+              className={`flex-1 py-2.5 px-4 text-[10px] font-bold text-white rounded-xl transition-all ${
+                faction === 'light'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                  : 'bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+              }`}
+            >
+              RESPAWN FIGHTER
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
