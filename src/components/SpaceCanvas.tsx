@@ -70,7 +70,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     enemiesCount: 0,
     speed: 0,
     lightKills: 0,
-    darkKills: 0
+    darkKills: 0,
+    bombCooldownPercent: 100,
+    boostCooldownPercent: 100,
+    boostActive: false,
+    boostRemainingSec: 0,
+    boostType: 'dash' as 'dash' | 'multiplier'
   });
 
   // Flow states
@@ -269,7 +274,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       aiState: 'patrol',
       aiDecisionTimer: 0,
       kills: 0,
-      deaths: 0
+      deaths: 0,
+      lastHitTime: 0,
+      boostType: Math.random() < 0.5 ? 'dash' : 'multiplier',
+      lastBoostTime: 0,
+      boostActiveTimer: 0,
+      lastBombTime: 0
     };
   };
 
@@ -323,7 +333,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       stats: playerDef.stats,
       color: playerDef.color,
       kills: 0,
-      deaths: 0
+      deaths: 0,
+      lastHitTime: 0,
+      boostType: Math.random() < 0.5 ? 'dash' : 'multiplier',
+      lastBoostTime: 0,
+      boostActiveTimer: 0,
+      lastBombTime: 0
     };
 
     game.current.playerShip = player;
@@ -570,6 +585,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.vx = 0;
       state.playerShip.vy = 0;
       state.playerShip.angle = faction === 'light' ? Math.PI / 2 : -Math.PI / 2;
+      state.playerShip.lastHitTime = 0;
+      state.playerShip.boostType = Math.random() < 0.5 ? 'dash' : 'multiplier';
+      state.playerShip.lastBoostTime = 0;
+      state.playerShip.boostActiveTimer = 0;
+      state.playerShip.lastBombTime = 0;
     }
     setIsDead(false);
   };
@@ -610,6 +630,181 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
   };
 
+  const spawnSplashExplosion = (x: number, y: number, color: string, count = 40) => {
+    const state = game.current;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.0 + Math.random() * 4.5;
+      state.particles.push({
+        id: `p_splash_${Math.random()}`,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 25 + Math.floor(Math.random() * 25),
+        maxLife: 50,
+        color,
+        size: Math.random() < 0.35 ? 5 : 2
+      });
+    }
+  };
+
+  const detonateBomb = (bomb: Laser) => {
+    const state = game.current;
+    const splashRadius = 250;
+    const splashDamage = 80;
+
+    // Screenshake based on proximity to player
+    const player = state.playerShip;
+    if (player) {
+      const dx = player.x - bomb.x;
+      const dy = player.y - bomb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < splashRadius + 200) {
+        const factor = Math.max(0, 1 - dist / (splashRadius + 200));
+        screenShake.current = {
+          duration: Math.floor(20 + factor * 20),
+          amplitude: Math.floor(6 + factor * 12)
+        };
+      }
+    }
+
+    // Spawn purple splash explosion particles
+    spawnSplashExplosion(bomb.x, bomb.y, '#c084fc', 40);
+
+    // Splash damage to ships (excluding friendly fire)
+    state.ships.forEach(ship => {
+      if (ship.hp <= 0) return;
+      if (ship.faction === bomb.faction) return; // friendly-fire safety
+
+      const dx = ship.x - bomb.x;
+      const dy = ship.y - bomb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < splashRadius) {
+        ship.hp = Math.max(0, ship.hp - splashDamage);
+        ship.lastHitTime = Date.now();
+
+        // Check fainted ship
+        if (ship.hp <= 0) {
+          spawnExplosion(ship.x, ship.y, '#eab308', 35);
+          spawnExplosion(ship.x, ship.y, '#f97316', 25);
+
+          ship.deaths = (ship.deaths || 0) + 1;
+
+          const killer = state.ships.find(s => s.id === bomb.ownerId);
+          if (killer) {
+            killer.kills = (killer.kills || 0) + 1;
+            if (killer.isPlayer) {
+              state.score += ship.stats.shield * 10;
+            }
+          }
+
+          if (ship.isPlayer) {
+            setIsDead(true);
+          } else {
+            const deadShip = ship;
+            setTimeout(() => {
+              if (game.current.playerShip && !isMatchOver) {
+                deadShip.hp = deadShip.maxHp;
+                deadShip.x = Math.random() * (WORLD_SIZE - 800) + 400;
+                if (deadShip.faction === 'light') {
+                  deadShip.y = 200 + Math.random() * 500;
+                  deadShip.angle = Math.PI / 2;
+                } else {
+                  deadShip.y = WORLD_SIZE - 700 + Math.random() * 500;
+                  deadShip.angle = -Math.PI / 2;
+                }
+                deadShip.vx = 0;
+                deadShip.vy = 0;
+              }
+            }, 5000);
+          }
+        }
+      }
+    });
+
+    // Splash damage to asteroids
+    state.asteroids.forEach(ast => {
+      const dx = ast.x - bomb.x;
+      const dy = ast.y - bomb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < splashRadius) {
+        ast.hp -= splashDamage;
+
+        if (ast.hp <= 0) {
+          spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
+          if (ast.size > 1) {
+            const newSize = ast.size - 1;
+            state.asteroids.push(
+              {
+                id: `ast_${ast.id}_1`,
+                x: ast.x + (Math.random() - 0.5) * 20,
+                y: ast.y + (Math.random() - 0.5) * 20,
+                vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                vy: ast.vy + (Math.random() - 0.5) * 1.2,
+                size: newSize,
+                hp: newSize * 15
+              },
+              {
+                id: `ast_${ast.id}_2`,
+                x: ast.x + (Math.random() - 0.5) * 20,
+                y: ast.y + (Math.random() - 0.5) * 20,
+                vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                vy: ast.vy + (Math.random() - 0.5) * 1.2,
+                size: newSize,
+                hp: newSize * 15
+              }
+            );
+          }
+          state.score += ast.size * 50;
+        }
+      }
+    });
+  };
+
+  const triggerSpeedBoost = (ship: SpaceShip) => {
+    const now = Date.now();
+    ship.lastBoostTime = now;
+
+    if (ship.boostType === 'dash') {
+      const dashDistance = 320;
+      const startX = ship.x;
+      const startY = ship.y;
+
+      // Trail at starting point
+      spawnExplosion(startX, startY, ship.faction === 'light' ? '#38bdf8' : '#ef4444', 15);
+
+      // Dash forward
+      ship.x += Math.cos(ship.angle) * dashDistance;
+      ship.y += Math.sin(ship.angle) * dashDistance;
+
+      // Keep within map boundaries
+      ship.x = Math.max(60, Math.min(WORLD_SIZE - 60, ship.x));
+      ship.y = Math.max(60, Math.min(WORLD_SIZE - 60, ship.y));
+
+      // Trail at end point
+      spawnExplosion(ship.x, ship.y, ship.faction === 'light' ? '#38bdf8' : '#ef4444', 15);
+
+      // Boost velocity
+      const dashSpeed = ship.stats.speed * 0.9;
+      ship.vx = Math.cos(ship.angle) * dashSpeed;
+      ship.vy = Math.sin(ship.angle) * dashSpeed;
+
+      if (ship.isPlayer) {
+        screenShake.current = { duration: 18, amplitude: 8 };
+      }
+    } else {
+      // 200% speed increase = 3x total speed multiplier for 6s (360 frames)
+      ship.boostActiveTimer = 360;
+
+      if (ship.isPlayer) {
+        screenShake.current = { duration: 10, amplitude: 3 };
+      }
+    }
+  };
+
   // Physics Updates
   const updateGamePhysics = () => {
     if (isPausedRef.current || isMatchOver) return;
@@ -624,9 +819,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     // --- 2. Update Player Ship Physics ---
     const player = state.playerShip;
     if (player.hp > 0) {
+      // Health Regeneration (if not hit for 3s / 3000ms)
+      if (player.lastHitTime && Date.now() - player.lastHitTime > 3000) {
+        player.hp = Math.min(player.maxHp, player.hp + 0.08); // regenerates ~4.8 HP per second
+      }
+
+      // Check boost status
+      const isBoostActive = player.boostActiveTimer !== undefined && player.boostActiveTimer > 0;
+      const speedMultiplier = isBoostActive ? 3.0 : 1.0;
+
       let ax = 0;
       let ay = 0;
-      const accel = 0.24;
+      const accel = 0.24 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
 
       // Poll Gamepad inputs if a controller is connected
@@ -636,6 +840,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       let gpAx = 0;
       let gpAy = 0;
       let gpShoot = false;
+      let gpBomb = false;
+      let gpBoost = false;
       let gpPausedToggle = false;
 
       if (gp) {
@@ -651,6 +857,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const yPressed = gp.buttons[3] && gp.buttons[3].pressed;
         if (l1Pressed || yPressed) {
           gpShoot = true;
+        }
+
+        // Button 6 is L2 (Left Trigger)
+        if (gp.buttons[6] && gp.buttons[6].pressed) {
+          gpBomb = true;
+        }
+
+        // Button 5 is R1 (Right Shoulder)
+        if (gp.buttons[5] && gp.buttons[5].pressed) {
+          gpBoost = true;
         }
 
         // Button 9 is Start
@@ -698,11 +914,46 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vy *= 0.96;
 
       // Speed clamp (faster gameplay)
-      const maxSpeed = player.stats.speed * 0.65;
+      const maxSpeed = player.stats.speed * 0.65 * speedMultiplier;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
       if (currentSpeed > maxSpeed) {
         player.vx = (player.vx / currentSpeed) * maxSpeed;
         player.vy = (player.vy / currentSpeed) * maxSpeed;
+      }
+
+      // Decrement boost timer
+      if (player.boostActiveTimer && player.boostActiveTimer > 0) {
+        player.boostActiveTimer -= 1;
+        // Spawn trail particles
+        if (Math.random() < 0.6) {
+          const trailAngle = player.angle + Math.PI + (Math.random() - 0.5) * 0.5;
+          state.particles.push({
+            id: `p_trail_${Math.random()}`,
+            x: player.x - Math.cos(player.angle) * 16,
+            y: player.y - Math.sin(player.angle) * 16,
+            vx: Math.cos(trailAngle) * 3 + player.vx,
+            vy: Math.sin(trailAngle) * 3 + player.vy,
+            life: 15 + Math.floor(Math.random() * 15),
+            maxLife: 30,
+            color: '#f59e0b',
+            size: Math.random() < 0.5 ? 4.5 : 2.5
+          });
+        }
+      }
+
+      // Bomb and Boost Inputs
+      const bombPressed = keysPressed.current['KeyE'] || gpBomb;
+      const now = Date.now();
+      const lastBomb = player.lastBombTime || 0;
+      if (bombPressed && now - lastBomb >= 7000) {
+        fireLaser(player, true); // true = isBomb
+        player.lastBombTime = now;
+      }
+
+      const boostPressed = keysPressed.current['KeyR'] || gpBoost;
+      const lastBoost = player.lastBoostTime || 0;
+      if (boostPressed && now - lastBoost >= 7000) {
+        triggerSpeedBoost(player);
       }
 
       // Update position
@@ -834,14 +1085,25 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const dy = target.y - ship.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
+          // AI Speed Boost logic
+          const now = Date.now();
+          const lastBoost = ship.lastBoostTime || 0;
+          if (now - lastBoost >= 7000) {
+            if (dist > 450 || ship.hp < ship.maxHp * 0.35) {
+              triggerSpeedBoost(ship);
+            }
+          }
+
           const targetAngle = Math.atan2(dy, dx);
           let diff = targetAngle - ship.angle;
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
           ship.angle += diff * 0.08;
 
-          const aiMaxSpeed = ship.stats.speed * 0.65;
-          const accelSpeed = aiMaxSpeed * 0.08;
+          const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
+          const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
+          const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
+          const accelSpeed = aiMaxSpeed * 0.08 * (aiBoostActive ? 1.8 : 1.0);
           if (dist > 300) {
             ship.vx += Math.cos(ship.angle) * accelSpeed;
             ship.vy += Math.sin(ship.angle) * accelSpeed;
@@ -855,7 +1117,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
           }
 
-          const now = Date.now();
           if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.3 + Math.random() * 0.6)) {
             fireLaser(ship);
             ship.lastShotTime = now;
@@ -883,8 +1144,30 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       // Physics integration
       ship.vx *= 0.96;
       ship.vy *= 0.96;
+
+      const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
+      const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
+
+      if (ship.boostActiveTimer && ship.boostActiveTimer > 0) {
+        ship.boostActiveTimer -= 1;
+        if (Math.random() < 0.4) {
+          const trailAngle = ship.angle + Math.PI + (Math.random() - 0.5) * 0.5;
+          state.particles.push({
+            id: `p_trail_${Math.random()}`,
+            x: ship.x - Math.cos(ship.angle) * 12,
+            y: ship.y - Math.sin(ship.angle) * 12,
+            vx: Math.cos(trailAngle) * 2 + ship.vx,
+            vy: Math.sin(trailAngle) * 2 + ship.vy,
+            life: 10 + Math.floor(Math.random() * 10),
+            maxLife: 20,
+            color: '#f59e0b',
+            size: 2
+          });
+        }
+      }
+
       const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      const aiMaxSpeed = ship.stats.speed * 0.65;
+      const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
       if (spd > aiMaxSpeed) {
         ship.vx = (ship.vx / spd) * aiMaxSpeed;
         ship.vy = (ship.vy / spd) * aiMaxSpeed;
@@ -916,11 +1199,17 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     // --- 4. Update Lasers ---
     state.lasers = state.lasers.filter(laser => {
+      const speed = Math.sqrt(laser.vx * laser.vx + laser.vy * laser.vy);
       laser.x += laser.vx;
       laser.y += laser.vy;
-      laser.rangeRemaining -= LASER_SPEED;
+      laser.rangeRemaining -= speed;
 
-      if (laser.rangeRemaining <= 0) return false;
+      if (laser.rangeRemaining <= 0) {
+        if (laser.isBomb) {
+          detonateBomb(laser);
+        }
+        return false;
+      }
 
       // Laser collision check with ships
       let hit = false;
@@ -934,56 +1223,62 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < 40) { // hit radius (larger for scaled-up ship size)
-          ship.hp = Math.max(0, ship.hp - laser.damage);
-          hit = true;
+          if (laser.isBomb) {
+            detonateBomb(laser);
+          } else {
+            ship.hp = Math.max(0, ship.hp - laser.damage);
+            ship.lastHitTime = Date.now();
+            hit = true;
 
-          // Spark particle splash
-          spawnExplosion(laser.x, laser.y, laser.color, 6);
+            // Spark particle splash
+            spawnExplosion(laser.x, laser.y, laser.color, 6);
 
-          // Screen shake on player hit
-          if (ship.isPlayer) {
-            screenShake.current = { duration: 15, amplitude: 6 };
-          }
+            // Screen shake on player hit
+            if (ship.isPlayer) {
+              screenShake.current = { duration: 15, amplitude: 6 };
+            }
 
-          // Check fainted ship
-          if (ship.hp <= 0) {
-            spawnExplosion(ship.x, ship.y, '#eab308', 35);
-            spawnExplosion(ship.x, ship.y, '#f97316', 25);
+            // Check fainted ship
+            if (ship.hp <= 0) {
+              spawnExplosion(ship.x, ship.y, '#eab308', 35);
+              spawnExplosion(ship.x, ship.y, '#f97316', 25);
 
-            // Increment deaths
-            ship.deaths = (ship.deaths || 0) + 1;
+              // Increment deaths
+              ship.deaths = (ship.deaths || 0) + 1;
 
-            // Increment kills on the killer ship
-            const killer = state.ships.find(s => s.id === laser.ownerId);
-            if (killer) {
-              killer.kills = (killer.kills || 0) + 1;
-              if (killer.isPlayer) {
-                state.score += ship.stats.shield * 10;
+              // Increment kills on the killer ship
+              const killer = state.ships.find(s => s.id === laser.ownerId);
+              if (killer) {
+                killer.kills = (killer.kills || 0) + 1;
+                if (killer.isPlayer) {
+                  state.score += ship.stats.shield * 10;
+                }
+              }
+
+              if (ship.isPlayer) {
+                setIsDead(true);
+              } else {
+                // Respawn AI ship after a delay at its base
+                const deadShip = ship;
+                setTimeout(() => {
+                  if (game.current.playerShip && !isMatchOver) {
+                    deadShip.hp = deadShip.maxHp;
+                    deadShip.x = Math.random() * (WORLD_SIZE - 800) + 400;
+                    if (deadShip.faction === 'light') {
+                      deadShip.y = 200 + Math.random() * 500;
+                      deadShip.angle = Math.PI / 2;
+                    } else {
+                      deadShip.y = WORLD_SIZE - 700 + Math.random() * 500;
+                      deadShip.angle = -Math.PI / 2;
+                    }
+                    deadShip.vx = 0;
+                    deadShip.vy = 0;
+                  }
+                }, 5000);
               }
             }
-
-            if (ship.isPlayer) {
-              setIsDead(true);
-            } else {
-              // Respawn AI ship after a delay at its base
-              const deadShip = ship;
-              setTimeout(() => {
-                if (game.current.playerShip && !isMatchOver) {
-                  deadShip.hp = deadShip.maxHp;
-                  deadShip.x = Math.random() * (WORLD_SIZE - 800) + 400;
-                  if (deadShip.faction === 'light') {
-                    deadShip.y = 200 + Math.random() * 500;
-                    deadShip.angle = Math.PI / 2;
-                  } else {
-                    deadShip.y = WORLD_SIZE - 700 + Math.random() * 500;
-                    deadShip.angle = -Math.PI / 2;
-                  }
-                  deadShip.vx = 0;
-                  deadShip.vy = 0;
-                }
-              }, 5000);
-            }
           }
+          hit = true;
           break;
         }
       }
@@ -998,39 +1293,44 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const hitRadius = ast.size * 14;
 
         if (dist < hitRadius) {
-          ast.hp -= laser.damage;
-          hit = true;
+          if (laser.isBomb) {
+            detonateBomb(laser);
+          } else {
+            ast.hp -= laser.damage;
+            hit = true;
 
-          spawnExplosion(laser.x, laser.y, '#78350f', 5);
+            spawnExplosion(laser.x, laser.y, '#78350f', 5);
 
-          if (ast.hp <= 0) {
-            spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
-            
-            if (ast.size > 1) {
-              const newSize = ast.size - 1;
-              state.asteroids.push(
-                {
-                  id: `ast_${ast.id}_1`,
-                  x: ast.x + (Math.random() - 0.5) * 20,
-                  y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
-                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
-                  size: newSize,
-                  hp: newSize * 15
-                },
-                {
-                  id: `ast_${ast.id}_2`,
-                  x: ast.x + (Math.random() - 0.5) * 20,
-                  y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
-                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
-                  size: newSize,
-                  hp: newSize * 15
-                }
-              );
+            if (ast.hp <= 0) {
+              spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
+              
+              if (ast.size > 1) {
+                const newSize = ast.size - 1;
+                state.asteroids.push(
+                  {
+                    id: `ast_${ast.id}_1`,
+                    x: ast.x + (Math.random() - 0.5) * 20,
+                    y: ast.y + (Math.random() - 0.5) * 20,
+                    vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                    vy: ast.vy + (Math.random() - 0.5) * 1.2,
+                    size: newSize,
+                    hp: newSize * 15
+                  },
+                  {
+                    id: `ast_${ast.id}_2`,
+                    x: ast.x + (Math.random() - 0.5) * 20,
+                    y: ast.y + (Math.random() - 0.5) * 20,
+                    vx: ast.vx + (Math.random() - 0.5) * 1.2,
+                    vy: ast.vy + (Math.random() - 0.5) * 1.2,
+                    size: newSize,
+                    hp: newSize * 15
+                  }
+                );
+              }
+              state.score += ast.size * 50;
             }
-            state.score += ast.size * 50;
           }
+          hit = true;
           break;
         }
       }
@@ -1065,6 +1365,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           ship.vy += Math.sin(pushAngle) * 1.2;
 
           ship.hp = Math.max(0, ship.hp - ast.size * 3);
+          ship.lastHitTime = Date.now();
           
           if (ship.hp <= 0) {
             ship.deaths = (ship.deaths || 0) + 1;
@@ -1114,6 +1415,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
 
     // --- 7. Sync HUD ---
+    const now = Date.now();
+    const bombElapsed = now - (player.lastBombTime || 0);
+    const bombCooldownPercent = Math.min(100, Math.floor((bombElapsed / 7000) * 100));
+
+    const boostElapsed = now - (player.lastBoostTime || 0);
+    const boostCooldownPercent = Math.min(100, Math.floor((boostElapsed / 7000) * 100));
+
+    const boostActive = player.boostActiveTimer !== undefined && player.boostActiveTimer > 0;
+    const boostRemainingSec = boostActive ? ((player.boostActiveTimer || 0) / 60) : 0;
+
     const { lightKills, darkKills } = getFactionScores();
     setHud({
       hp: player.hp,
@@ -1125,14 +1436,42 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       enemiesCount: state.ships.filter(s => s.faction !== faction && s.hp > 0).length,
       speed: Math.round(Math.sqrt(player.vx * player.vx + player.vy * player.vy) * 10),
       lightKills,
-      darkKills
+      darkKills,
+      bombCooldownPercent,
+      boostCooldownPercent,
+      boostActive,
+      boostRemainingSec,
+      boostType: player.boostType || 'dash'
     });
   };
 
   // Launch a laser shot
-  const fireLaser = (ship: SpaceShip) => {
+  const fireLaser = (ship: SpaceShip, isBomb = false) => {
     const state = game.current;
     
+    if (isBomb) {
+      const lx = ship.x + Math.cos(ship.angle) * 20;
+      const ly = ship.y + Math.sin(ship.angle) * 20;
+      const speed = LASER_SPEED * 0.35; // moves slowly
+      const vx = Math.cos(ship.angle) * speed;
+      const vy = Math.sin(ship.angle) * speed;
+
+      state.lasers.push({
+        id: `las_bomb_${Math.random()}`,
+        ownerId: ship.id,
+        faction: ship.faction,
+        x: lx,
+        y: ly,
+        vx,
+        vy,
+        damage: 80, // 80 splash damage
+        rangeRemaining: 380, // range limit in pixels
+        color: '#c084fc', // purple bomb color
+        isBomb: true
+      });
+      return;
+    }
+
     // Millennium Falcon has dual turrets!
     if (ship.defId === 'falcon') {
       const offsetL = ship.angle - Math.PI / 2;
@@ -1698,6 +2037,38 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           SPEED: <span className="text-white crt-glow">{hud.speed} km/s</span>
         </div>
 
+        {/* Special Moves Cooldowns */}
+        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md flex gap-5 text-[8px] text-zinc-400 font-bold pointer-events-auto">
+          {/* Bomb Cooldown */}
+          <div className="flex items-center gap-2">
+            <span className="text-purple-400">BOMB (E/L2)</span>
+            <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+              <div
+                className="h-full bg-purple-500 transition-all duration-100"
+                style={{ width: `${hud.bombCooldownPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Speed Boost Cooldown */}
+          <div className="flex items-center gap-2">
+            <span className="text-amber-400 font-mono text-[7px] uppercase leading-none">
+              {hud.boostType === 'dash' ? 'DASH (R/R1)' : 'BOOST (R/R1)'}
+            </span>
+            <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+              <div
+                className={`h-full transition-all duration-100 ${hud.boostActive ? 'bg-amber-300 animate-pulse' : 'bg-amber-500'}`}
+                style={{ width: `${hud.boostCooldownPercent}%` }}
+              />
+            </div>
+            {hud.boostActive && (
+              <span className="text-[7px] text-amber-300 animate-pulse font-mono font-extrabold">
+                {Math.ceil(hud.boostRemainingSec)}s
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Shield Integrity Meter */}
         <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl backdrop-blur-md w-[280px]">
           <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>
@@ -1717,7 +2088,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       {/* Control Help bar */}
       <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-500 font-bold uppercase tracking-widest pointer-events-none">
-        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A / I / L1</kbd>
+        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">L1 / LEFT CLICK</kbd> | Bomb: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">E / L2</kbd> | Boost: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">R / R1</kbd>
       </div>
 
       {/* Pause Menu Overlay */}
