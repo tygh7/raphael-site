@@ -504,19 +504,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       let ax = 0;
       let ay = 0;
       const accel = 0.24;
+      const controlSign = faction === 'light' ? -1 : 1;
 
-      // ZQSD movement
+      // ZQSD movement (oriented relative to player's screen view)
       if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
-        ay = -accel;
+        ay = -accel * controlSign;
       }
       if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
-        ay = accel;
+        ay = accel * controlSign;
       }
       if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
-        ax = -accel;
+        ax = -accel * controlSign;
       }
       if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
-        ax = accel;
+        ax = accel * controlSign;
       }
 
       // Apply forces
@@ -563,14 +564,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player.y = Math.max(50, Math.min(WORLD_SIZE - 50, player.y));
       }
 
-      // Steer/Aim towards mouse cursor
+      // Steer/Aim towards mouse cursor (taking camera rotation into account)
       const canvas = canvasRef.current;
       if (canvas) {
         const screenCenterX = canvas.width / 2;
         const screenCenterY = canvas.height / 2;
         const dx = mousePos.current.x - screenCenterX;
         const dy = mousePos.current.y - screenCenterY;
-        player.angle = Math.atan2(dy, dx);
+        // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
+        player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
       }
 
       // Engine particles
@@ -1018,6 +1020,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const dx = (Math.random() - 0.5) * screenShake.current.amplitude;
       const dy = (Math.random() - 0.5) * screenShake.current.amplitude;
       ctx.translate(dx, dy);
+    }
+
+    // Apply Camera Rotation based on Faction View
+    // Light faction: rotated 180 degrees so that South (center) points UP.
+    if (faction === 'light') {
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
     }
 
     const player = game.current.playerShip;
