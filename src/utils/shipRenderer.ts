@@ -177,49 +177,49 @@ export function drawPixelShip(
 
   switch (defId) {
     case 'x_wing':
-      accentColor = '#ef4444'; // Red squadron stripes
-      glassColor = '#38bdf8';  // Light blue glass
-      hullColor = '#e2e8f0';   // Classic rebel off-white/light grey
+      accentColor = '#dc2626'; // Red squadron stripes (high contrast)
+      glassColor = '#67e8f9';  // Bright cyan glass
+      hullColor = '#f1f5f9';   // Rebel light grey
       break;
     case 'falcon':
-      accentColor = '#b91c1c'; // Dark red trim
-      glassColor = '#67e8f9';  // Blue cockpit glow
-      hullColor = '#cbd5e1';   // Weathered beige grey
+      accentColor = '#991b1b'; // Weathered dark red/rust trim
+      glassColor = '#22d3ee';  // Vibrant cyan cockpit glow
+      hullColor = '#cbd5e1';   // Weathered beige-grey plating
       break;
     case 'delta_7':
-      accentColor = '#dc2626'; // Obi-Wan's red markings
-      glassColor = '#38bdf8';  // Blue glass
-      hullColor = '#f8fafc';   // Clean white hull
+      accentColor = '#dc2626'; // Jedi red markings
+      glassColor = '#38bdf8';  // Light blue glass
+      hullColor = '#f8fafc';   // Pristine white armor
       break;
     case 'jedi_interceptor':
-      accentColor = '#eab308'; // Anakin's yellow markings
-      glassColor = '#4ade80';  // Green cockpit glass
-      hullColor = '#334155';   // Dark metallic grey hull
+      accentColor = '#fbbf24'; // Anakin's gold-yellow trim
+      glassColor = '#4ade80';  // Glowing green cockpit
+      hullColor = '#475569';   // Dark steel hull
       break;
     case 'solar_sailer':
-      accentColor = '#ea580c'; // Bronze solar sail
-      glassColor = '#ef4444';  // Red glass
-      hullColor = '#451a03';   // Deep copper metallic hull
+      accentColor = '#ea580c'; // Bronze sail frame
+      glassColor = '#f43f5e';  // Crimson glass window
+      hullColor = '#5c1d02';   // Count Dooku's copper-brown hull
       break;
     case 'tie_fighter':
-      accentColor = '#18181b'; // Black solar panels
-      glassColor = '#f87171';  // Orange-red glow window
-      hullColor = '#94a3b8';   // Standard light blue-grey Imperial metal
+      accentColor = '#09090b'; // Obsidian black panels (high contrast)
+      glassColor = '#ef4444';  // Sith red target window
+      hullColor = '#cbd5e1';   // Classic Imperial blue-grey metal
       break;
     case 'tie_vader':
-      accentColor = '#09090b'; // Obsidian black panels
-      glassColor = '#ef4444';  // Dark red window
-      hullColor = '#475569';   // Dark metallic grey
+      accentColor = '#09090b'; // Imperial dark panels
+      glassColor = '#ef4444';  // Menacing red cockpit glint
+      hullColor = '#64748b';   // Darth Vader's custom slate grey metal
       break;
     case 'tie_n2':
-      accentColor = '#b91c1c'; // Glowing red energy lines
-      glassColor = '#f97316';  // Orange cockpit window
-      hullColor = '#1e293b';   // Dark carbon metal
+      accentColor = '#ef4444'; // Glowing red power lines
+      glassColor = '#f97316';  // Orange-red target glass
+      hullColor = '#0f172a';   // Obsidian dark carbon fiber hull
       break;
     case 'tie_silencer':
-      accentColor = '#020617'; // Midnight black panels
-      glassColor = '#b91c1c';  // Crimson cockpit glass
-      hullColor = '#334155';   // Dark blue-grey hull
+      accentColor = '#020617'; // Deep dark panels
+      glassColor = '#f43f5e';  // Kylo Ren's crimson viewport
+      hullColor = '#475569';   // Dark metallic slate hull
       break;
   }
 
@@ -233,8 +233,14 @@ export function drawPixelShip(
   // Disable smoothing inside rendering logic
   ctx.imageSmoothingEnabled = false;
 
-  // 1. Draw a detailed deflector shield ring around the ship
-  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.15)';
+  // 1. Draw detailed glowing double deflector shield rings around the ship
+  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.06)' : 'rgba(239, 68, 68, 0.08)';
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.16)' : 'rgba(239, 68, 68, 0.2)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
@@ -252,6 +258,20 @@ export function drawPixelShip(
     ctx.fill();
   }
 
+  // 3. Draw a global 3D depth drop-shadow cast behind the ship (making it pop off the canvas)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  const shadowOffset = size * 0.11;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cellValue = matrix[r][c];
+      if (cellValue === 0 || cellValue === 3) continue; // Skip empty space & engine flame
+      const ox = (c - xCenter) * pixelSize + shadowOffset;
+      const oy = (r - yCenter) * pixelSize + shadowOffset;
+      ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+    }
+  }
+
+  // 4. Draw ship pixels with local volumetric shading
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cellValue = matrix[r][c];
@@ -260,38 +280,81 @@ export function drawPixelShip(
       const ox = (c - xCenter) * pixelSize;
       const oy = (r - yCenter) * pixelSize;
 
+      // Identify local edge neighbors for 3D highlights & shadows
+      const isTopEdge = r > 0 && matrix[r - 1][c] === 0;
+      const isBottomEdge = r < rows - 1 && matrix[r + 1][c] === 0;
+      const isLeftEdge = c > 0 && matrix[r][c - 1] === 0;
+      const isRightEdge = c < cols - 1 && matrix[r][c + 1] === 0;
+
       switch (cellValue) {
         case 1: // Faction Neon Accent
           ctx.fillStyle = accentColor;
           ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-          // Bevel shadow on bottom/right of the pixel
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-          ctx.fillRect(Math.floor(ox), Math.floor(oy + pixelSize - 1), Math.ceil(pixelSize), 1);
-          ctx.fillRect(Math.floor(ox + pixelSize - 1), Math.floor(oy), 1, Math.ceil(pixelSize));
-          break;
-        case 2: // Cockpit Glass with glint reflection
-          ctx.fillStyle = glassColor;
-          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-          // Glint reflection
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize * 0.4), Math.ceil(pixelSize * 0.4));
-          break;
-        case 3: // Engine Thruster Flame (flashes with white hot core)
-          if (isMoving && Math.random() < 0.75) {
-            ctx.fillStyle = Math.random() < 0.5 ? '#f97316' : '#eab308'; // Orange or Yellow
+          
+          // Apply 3D volumetric shading
+          if (isTopEdge || isLeftEdge) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; // bright highlight
             ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-            // White hot core
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(Math.floor(ox + pixelSize * 0.25), Math.floor(oy + pixelSize * 0.25), Math.ceil(pixelSize * 0.5), Math.ceil(pixelSize * 0.5));
+          } else if (isBottomEdge || isRightEdge) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'; // dark edge shadow
+            ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          } else {
+            // Ambient vertical gradient
+            const shadeVal = (r / rows) * 0.25 - 0.08;
+            if (shadeVal > 0) {
+              ctx.fillStyle = `rgba(0, 0, 0, ${shadeVal})`;
+              ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            } else if (shadeVal < 0) {
+              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(shadeVal)})`;
+              ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            }
           }
           break;
-        case 4: // Main Hull Armor with bevel shadow
+        case 2: // Cockpit Glass with glint reflection & glow
+          ctx.fillStyle = glassColor;
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          
+          // Glint reflection
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize * 0.4), Math.ceil(pixelSize * 0.4));
+          
+          // Radial glow inside cockpit glass for 3D look
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          ctx.fillRect(Math.floor(ox + pixelSize * 0.3), Math.floor(oy + pixelSize * 0.3), Math.ceil(pixelSize * 0.45), Math.ceil(pixelSize * 0.45));
+          break;
+        case 3: // Engine Thruster Flame (flashes with white hot core)
+          if (isMoving && Math.random() < 0.85) {
+            // Animated outer flame
+            ctx.fillStyle = Math.random() < 0.4 ? '#ff4500' : (Math.random() < 0.7 ? '#ff8c00' : '#ffd700'); 
+            ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            
+            // White hot core
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(Math.floor(ox + pixelSize * 0.2), Math.floor(oy + pixelSize * 0.2), Math.ceil(pixelSize * 0.6), Math.ceil(pixelSize * 0.6));
+          }
+          break;
+        case 4: // Main Hull Armor
           ctx.fillStyle = hullColor;
           ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-          // Bevel shadow
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-          ctx.fillRect(Math.floor(ox), Math.floor(oy + pixelSize - 1), Math.ceil(pixelSize), 1);
-          ctx.fillRect(Math.floor(ox + pixelSize - 1), Math.floor(oy), 1, Math.ceil(pixelSize));
+          
+          // Apply 3D volumetric shading
+          if (isTopEdge || isLeftEdge) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.28)'; // bright highlight
+            ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          } else if (isBottomEdge || isRightEdge) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.32)'; // dark edge shadow
+            ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          } else {
+            // Ambient vertical gradient
+            const shadeVal = (r / rows) * 0.24 - 0.08;
+            if (shadeVal > 0) {
+              ctx.fillStyle = `rgba(0, 0, 0, ${shadeVal})`;
+              ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            } else if (shadeVal < 0) {
+              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(shadeVal)})`;
+              ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            }
+          }
           break;
         default:
           ctx.fillStyle = '#ffffff';
