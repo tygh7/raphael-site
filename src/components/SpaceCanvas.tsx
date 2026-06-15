@@ -13,7 +13,7 @@ interface SpaceCanvasProps {
 
 const WORLD_SIZE = 8000;
 const INITIAL_ASTEROIDS = 80;
-const LASER_SPEED = 7.5;
+const LASER_SPEED = 11.0;
 
 const LIGHT_PILOT_NAMES = [
   'Wedge Antilles',
@@ -322,8 +322,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
     game.current.asteroids = asteroids;
 
-    // 3. Spawn Fleet AI (even number of fighters: 10 vs 10)
-    const teamSize = 10;
+    // 3. Spawn Fleet AI (even number of fighters: 16 vs 16)
+    const teamSize = 16;
     const oppFaction = faction === 'light' ? 'dark' : 'light';
     
     // Spawn team AI (9 allies + player = 10)
@@ -503,7 +503,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     if (player.hp > 0) {
       let ax = 0;
       let ay = 0;
-      const accel = 0.16;
+      const accel = 0.24;
 
       // ZQSD movement
       if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
@@ -527,8 +527,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vx *= 0.96;
       player.vy *= 0.96;
 
-      // Speed clamp
-      const maxSpeed = player.stats.speed * 0.45;
+      // Speed clamp (faster gameplay)
+      const maxSpeed = player.stats.speed * 0.65;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
       if (currentSpeed > maxSpeed) {
         player.vx = (player.vx / currentSpeed) * maxSpeed;
@@ -630,8 +630,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           while (diff > Math.PI) diff -= Math.PI * 2;
           ship.angle += diff * 0.08;
 
-          const aiMaxSpeed = ship.stats.speed * 0.45;
-          const accelSpeed = aiMaxSpeed * 0.06;
+          const aiMaxSpeed = ship.stats.speed * 0.65;
+          const accelSpeed = aiMaxSpeed * 0.08;
           if (dist > 300) {
             ship.vx += Math.cos(ship.angle) * accelSpeed;
             ship.vy += Math.sin(ship.angle) * accelSpeed;
@@ -664,7 +664,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.vx *= 0.96;
       ship.vy *= 0.96;
       const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      const aiMaxSpeed = ship.stats.speed * 0.45;
+      const aiMaxSpeed = ship.stats.speed * 0.65;
       if (spd > aiMaxSpeed) {
         ship.vx = (ship.vx / spd) * aiMaxSpeed;
         ship.vy = (ship.vy / spd) * aiMaxSpeed;
@@ -697,7 +697,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dy = ship.y - laser.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 22) { // hit radius
+        if (dist < 28) { // hit radius (larger for bigger ship size)
           ship.hp = Math.max(0, ship.hp - laser.damage);
           hit = true;
 
@@ -818,7 +818,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dx = ship.x - ast.x;
         const dy = ship.y - ast.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const radius = ast.size * 12 + 16;
+        const radius = ast.size * 12 + 20; // larger radius for bigger ship size
 
         if (dist < radius) {
           // Bounce ship
@@ -1118,7 +1118,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx,
         sx,
         sy,
-        ship.isPlayer ? 26 : 21,
+        ship.isPlayer ? 36 : 30, // spacecraft sizes scaled up
         ship.angle,
         ship.defId,
         ship.faction,
@@ -1199,15 +1199,19 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const rankings = getLeaderboard();
   const topPilot = rankings[0];
 
-  // Determine faction winner
+  // Determine faction winner: side with most kills AND best K/D ratio wins
   const factionScores = getFactionScores();
-  let factionWinnerMsg = 'DRAW';
+  const lightRatio = factionScores.lightDeaths === 0 ? factionScores.lightKills * 999 : factionScores.lightKills / factionScores.lightDeaths;
+  const darkRatio = factionScores.darkDeaths === 0 ? factionScores.darkKills * 999 : factionScores.darkKills / factionScores.darkDeaths;
+
+  let factionWinnerMsg = 'CONTESTED STANDOFF';
   let factionWinnerColor = 'text-yellow-400';
-  if (factionScores.lightKills > factionScores.darkKills) {
-    factionWinnerMsg = 'LIGHT SIDE WINS THE REGION';
+  
+  if (factionScores.lightKills > factionScores.darkKills && lightRatio > darkRatio) {
+    factionWinnerMsg = 'LIGHT SIDE WINS (KILLS & RATIO)';
     factionWinnerColor = 'text-emerald-400';
-  } else if (factionScores.darkKills > factionScores.lightKills) {
-    factionWinnerMsg = 'DARK SIDE WINS THE REGION';
+  } else if (factionScores.darkKills > factionScores.lightKills && darkRatio > lightRatio) {
+    factionWinnerMsg = 'DARK SIDE WINS (KILLS & RATIO)';
     factionWinnerColor = 'text-rose-500';
   }
 
@@ -1284,6 +1288,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         height={canvasDimensions.height}
         className="w-full h-full cursor-crosshair block bg-black"
       />
+
+      {/* Live Leaderboard Overlay (Galaga Retro style top-right kills/deaths pilot list) */}
+      <div className="absolute top-[80px] right-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[240px] pointer-events-none">
+        <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-1 text-center">
+          LEADERBOARD (TOP 5)
+        </span>
+        {rankings.slice(0, 5).map((ship, index) => {
+          const rank = index + 1;
+          const isPlayer = ship.isPlayer;
+          return (
+            <div key={ship.id} className={`flex justify-between items-center text-[7.5px] font-mono leading-none ${isPlayer ? 'text-sky-400 font-bold' : 'text-zinc-400'}`}>
+              <span className="truncate max-w-[155px]">
+                {rank}. {ship.name.split(' (')[0]}
+              </span>
+              <span>
+                {ship.kills || 0}K/{ship.deaths || 0}D
+              </span>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Full-Screen HUD Overlay Footer */}
       <div className="absolute bottom-6 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
@@ -1456,6 +1481,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               </h3>
               <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mt-1">
                 Final standing - Light Side: {factionScores.lightKills} Kills | Dark Side: {factionScores.darkKills} Kills
+              </p>
+              <p className="text-[8px] text-zinc-650 font-mono uppercase tracking-widest mt-0.5">
+                Light Ratio: {(factionScores.lightDeaths === 0 ? factionScores.lightKills : (factionScores.lightKills / factionScores.lightDeaths)).toFixed(2)} | Dark Ratio: {(factionScores.darkDeaths === 0 ? factionScores.darkKills : (factionScores.darkKills / factionScores.darkDeaths)).toFixed(2)}
               </p>
             </div>
 
