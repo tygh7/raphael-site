@@ -45,7 +45,7 @@ export interface SpaceShip {
 
   // AI targeting
   targetId?: string;
-  aiState?: 'patrol' | 'chase' | 'avoid';
+  aiState?: 'patrol' | 'chase' | 'avoid' | 'escape' | 'support';
   aiDecisionTimer?: number;
 
   // Special moves & mechanics
