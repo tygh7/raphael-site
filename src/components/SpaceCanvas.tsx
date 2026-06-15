@@ -646,8 +646,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         if (Math.abs(lx) > deadzone) gpAx = lx;
         if (Math.abs(ly) > deadzone) gpAy = ly;
 
-        // Button 3 is the top of the right 4 buttons (Y/Triangle)
-        if (gp.buttons[3] && gp.buttons[3].pressed) {
+        // Button 4 is L1 (Left Shoulder) and Button 3 is Y/Triangle
+        const l1Pressed = gp.buttons[4] && gp.buttons[4].pressed;
+        const yPressed = gp.buttons[3] && gp.buttons[3].pressed;
+        if (l1Pressed || yPressed) {
           gpShoot = true;
         }
 
@@ -1714,8 +1716,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       </div>
 
       {/* Control Help bar */}
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-650 font-bold uppercase tracking-widest pointer-events-none">
-        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A / I</kbd>
+      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-500 font-bold uppercase tracking-widest pointer-events-none">
+        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A / I / L1</kbd>
       </div>
 
       {/* Pause Menu Overlay */}
