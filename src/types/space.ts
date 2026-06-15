@@ -24,9 +24,14 @@ export interface SpaceShip {
   faction: Faction;
   x: number;
   y: number;
+  z?: number;
   vx: number;
   vy: number;
+  vz?: number;
   angle: number; // in radians
+  pitch?: number;
+  yaw?: number;
+  roll?: number;
   hp: number;
   maxHp: number;
   lastShotTime: number;
@@ -50,8 +55,10 @@ export interface Laser {
   faction: Faction;
   x: number;
   y: number;
+  z?: number;
   vx: number;
   vy: number;
+  vz?: number;
   damage: number;
   rangeRemaining: number;
   color: string;
@@ -61,8 +68,10 @@ export interface Particle {
   id: string;
   x: number;
   y: number;
+  z?: number;
   vx: number;
   vy: number;
+  vz?: number;
   life: number; // remaining life frames
   maxLife: number;
   color: string;
@@ -73,8 +82,10 @@ export interface Asteroid {
   id: string;
   x: number;
   y: number;
+  z?: number;
   vx: number;
   vy: number;
+  vz?: number;
   size: number; // 3 (large), 2 (medium), 1 (small)
   hp: number;
 }
