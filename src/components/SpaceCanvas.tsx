@@ -2597,8 +2597,49 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           </div>
 
           {selectedRespawnShipDef && (
-            <div className="text-center text-[10px] text-zinc-500 italic max-w-[400px]">
-              "{selectedRespawnShipDef.description}"
+            <div className="flex flex-col gap-3 max-w-[660px] w-full border border-zinc-800/80 bg-zinc-950/70 p-4 rounded-2xl shadow-inner font-mono text-[9px] text-zinc-400">
+              {/* Description */}
+              <div className="text-center font-sans italic text-zinc-300 text-[10.5px]">
+                "{selectedRespawnShipDef.description}"
+              </div>
+              
+              {/* Stat badges */}
+              <div className="grid grid-cols-5 gap-2 border-t border-zinc-900 pt-3 text-center">
+                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
+                  <span className="text-[7.5px] text-zinc-500 uppercase">Speed</span>
+                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.speed}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
+                  <span className="text-[7.5px] text-zinc-500 uppercase">Power</span>
+                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.power}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
+                  <span className="text-[7.5px] text-zinc-500 uppercase">Rate</span>
+                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.rate}ms</span>
+                </div>
+                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
+                  <span className="text-[7.5px] text-zinc-500 uppercase">Range</span>
+                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.range}px</span>
+                </div>
+                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
+                  <span className="text-[7.5px] text-zinc-500 uppercase">Shield</span>
+                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.shield}</span>
+                </div>
+              </div>
+
+              {/* Special Ability Badge */}
+              <div className="border-t border-zinc-900 pt-3 flex justify-between items-center bg-zinc-900/20 p-2 rounded-xl border border-zinc-900/40">
+                <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wider">Special Ability:</span>
+                {getSpecialTypeForShip(selectedRespawnShipDef.id) === 'beam' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border border-cyan-500/30 bg-cyan-950/30 text-cyan-400 animate-pulse">
+                    ⚡ Super Piercing Beam (1000 DMG)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border border-blue-500/30 bg-blue-950/30 text-blue-400 animate-pulse">
+                    🛡️ Deflector Shield (5s Reflect)
+                  </span>
+                )}
+              </div>
             </div>
           )}
 

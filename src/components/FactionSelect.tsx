@@ -4,6 +4,13 @@ import { LIGHT_SHIPS, DARK_SHIPS } from '../utils/spaceShips';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { Shield, Zap, Swords, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 
+const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
+  if (defId === 'x_wing' || defId === 'falcon') return 'shield';
+  if (defId === 'delta_7' || defId === 'jedi_interceptor') return 'beam';
+  if (defId === 'tie_vader' || defId === 'tie_n2') return 'beam';
+  return 'shield';
+};
+
 interface FactionSelectProps {
   onLaunch: (faction: Faction, shipId: string) => void;
 }
@@ -289,7 +296,28 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               {renderStatBar('Laser Power', currentShip.stats.power, 40, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
               {/* Rate represents cooldown, lower is better. We invert it for the slider: Max cooldown 500ms, Min 100ms */}
               {renderStatBar('Fire Frequency', Math.round(10000 / currentShip.stats.rate), 100, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
+              {renderStatBar('Laser Range', currentShip.stats.range, 1000, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
               {renderStatBar('Defensive Shield', currentShip.stats.shield, 300, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
+            </div>
+
+            {/* Special Power Info */}
+            <div className="border-t border-zinc-850 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
+              <span className="text-zinc-500 font-bold uppercase tracking-wider">Special Ability (W / R2)</span>
+              {getSpecialTypeForShip(currentShip.id) === 'beam' ? (
+                <div className="flex flex-col gap-1 border border-cyan-950/60 bg-cyan-950/20 p-2.5 rounded-xl text-cyan-400">
+                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">⚡ Super Piercing Beam</span>
+                  <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                    Fires a massive high-energy beam slicing through all ships for 1,000 damage.
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 border border-blue-950/60 bg-blue-950/20 p-2.5 rounded-xl text-blue-400">
+                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🛡️ Deflector Shield</span>
+                  <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                    Creates a reflective bubble for 5 seconds that bounces enemy lasers back.
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Launch Button */}
