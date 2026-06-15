@@ -45,6 +45,21 @@ const DARK_PILOT_NAMES = [
   'Major Mihel'
 ];
 
+const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
+  // Light side: x_wing, falcon -> shield; delta_7, jedi_interceptor -> beam
+  if (defId === 'x_wing' || defId === 'falcon') {
+    return 'shield';
+  }
+  if (defId === 'delta_7' || defId === 'jedi_interceptor') {
+    return 'beam';
+  }
+  // Dark side: tie_vader, tie_n2 -> beam; solar_sailer, tie_fighter, tie_silencer -> shield
+  if (defId === 'tie_vader' || defId === 'tie_n2') {
+    return 'beam';
+  }
+  return 'shield'; // solar_sailer, tie_fighter, tie_silencer
+};
+
 export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   faction,
   selectedShipId,
@@ -285,7 +300,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       lastBoostTime: 0,
       boostActiveTimer: 0,
       lastBombTime: 0,
-      specialType: Math.random() < 0.5 ? 'beam' : 'shield',
+      specialType: getSpecialTypeForShip(def.id),
       lastSpecialTime: 0,
       shieldActiveTimer: 0
     };
@@ -347,7 +362,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       lastBoostTime: 0,
       boostActiveTimer: 0,
       lastBombTime: 0,
-      specialType: Math.random() < 0.5 ? 'beam' : 'shield',
+      specialType: getSpecialTypeForShip(selectedShipId),
       lastSpecialTime: 0,
       shieldActiveTimer: 0
     };
@@ -607,7 +622,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.lastBoostTime = 0;
       state.playerShip.boostActiveTimer = 0;
       state.playerShip.lastBombTime = 0;
-      state.playerShip.specialType = Math.random() < 0.5 ? 'beam' : 'shield';
+      state.playerShip.specialType = getSpecialTypeForShip(respawnShipId);
       state.playerShip.lastSpecialTime = 0;
       state.playerShip.shieldActiveTimer = 0;
     }
@@ -650,29 +665,65 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
   };
 
-  const spawnSplashExplosion = (x: number, y: number, color: string, count = 40) => {
+  const spawnSplashExplosion = (x: number, y: number, color: string, count = 70) => {
     const state = game.current;
+    
+    // 1. Add primary expanding shockwave ring (purple)
+    state.particles.push({
+      id: `p_shockwave_${Math.random()}`,
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      life: 35,
+      maxLife: 35,
+      color: 'rgba(168, 85, 247, 0.45)', // Emissive purple
+      size: 1,
+      isShockwave: true,
+      maxRadius: 600
+    });
+
+    // 2. Add secondary faster white shockwave ring
+    state.particles.push({
+      id: `p_shockwave2_${Math.random()}`,
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      life: 20,
+      maxLife: 20,
+      color: 'rgba(255, 255, 255, 0.65)',
+      size: 1,
+      isShockwave: true,
+      maxRadius: 400
+    });
+
+    // 3. Fast multicolored debris and sparkle fragments
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.0 + Math.random() * 4.5;
+      const speed = 1.5 + Math.random() * 8.5;
+      const particleColor = Math.random() < 0.5 
+        ? '#c084fc' // Light violet
+        : (Math.random() < 0.75 ? '#f472b6' : '#ffffff'); // Pink or white
+
       state.particles.push({
         id: `p_splash_${Math.random()}`,
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 25 + Math.floor(Math.random() * 25),
-        maxLife: 50,
-        color,
-        size: Math.random() < 0.35 ? 5 : 2
+        life: 25 + Math.floor(Math.random() * 30),
+        maxLife: 55,
+        color: particleColor,
+        size: Math.random() < 0.25 ? 6 : (Math.random() < 0.65 ? 3 : 1.5)
       });
     }
   };
 
   const detonateBomb = (bomb: Laser) => {
     const state = game.current;
-    const splashRadius = 400; // upgraded from 250
-    const splashDamage = 150; // upgraded from 80
+    const splashRadius = 600; // upgraded from 400 to match wider area request
+    const splashDamage = 150; 
 
     // Screenshake based on proximity to player
     const player = state.playerShip;
@@ -689,7 +740,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
-    // Spawn purple splash explosion particles
+    // Spawn purple splash explosion particles & shockwaves
     spawnSplashExplosion(bomb.x, bomb.y, '#c084fc', 70);
 
     // Splash damage to ships (excluding friendly fire and active shields)
@@ -2170,9 +2221,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const sy = p.y + offsetY;
       const lifePct = p.life / p.maxLife;
 
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = lifePct;
-      ctx.fillRect(sx - p.size / 2, sy - p.size / 2, p.size, p.size);
+      if (p.isShockwave) {
+        // Draw expansive circular shockwave
+        const currentRadius = (1 - lifePct) * (p.maxRadius || 600);
+        
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3.5 * lifePct; // Thins out as it expands
+        ctx.beginPath();
+        ctx.arc(sx, sy, currentRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Soft internal filling glow
+        ctx.fillStyle = p.color.replace('0.45', (0.12 * lifePct).toString()).replace('0.65', (0.18 * lifePct).toString());
+        ctx.beginPath();
+        ctx.arc(sx, sy, currentRadius * 0.95, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Draw normal square pixel particle
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = lifePct;
+        ctx.fillRect(sx - p.size / 2, sy - p.size / 2, p.size, p.size);
+      }
     });
     ctx.globalAlpha = 1.0;
 

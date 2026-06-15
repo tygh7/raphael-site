@@ -88,6 +88,8 @@ export interface Particle {
   maxLife: number;
   color: string;
   size: number;
+  isShockwave?: boolean;
+  maxRadius?: number;
 }
 
 export interface Asteroid {
