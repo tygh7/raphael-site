@@ -29,7 +29,7 @@ export const SpaceRules: React.FC = () => {
               <p>Your ship rotates automatically to align its laser cannons with your mouse cursor on the screen.</p>
             </li>
             <li className="flex gap-2">
-              <span className="text-sky-500 font-bold font-mono">LEFT CLICK:</span>
+              <span className="text-sky-500 font-bold font-mono">LEFT CLICK / A / I:</span>
               <p>Fire your primary laser cannons! Hold to autofire at your ship's specific frequency.</p>
             </li>
           </ul>

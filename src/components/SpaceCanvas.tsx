@@ -512,7 +512,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
         ay = accel;
       }
-      if (keysPressed.current['KeyA'] || keysPressed.current['KeyQ'] || keysPressed.current['ArrowLeft']) {
+      if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
         ax = -accel;
       }
       if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
@@ -569,8 +569,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         });
       }
 
-      // Shoot trigger
-      if (isMouseDown.current || keysPressed.current['KeyI']) {
+      // Shoot trigger (using Left Click, KeyI, or KeyQ which corresponds to physical 'A' on AZERTY / 'Q' on QWERTY)
+      if (isMouseDown.current || keysPressed.current['KeyI'] || keysPressed.current['KeyQ']) {
         const now = Date.now();
         if (now - player.lastShotTime >= player.stats.rate) {
           fireLaser(player);
@@ -697,7 +697,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dy = ship.y - laser.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 28) { // hit radius (larger for bigger ship size)
+        if (dist < 34) { // hit radius (larger for scaled-up ship size)
           ship.hp = Math.max(0, ship.hp - laser.damage);
           hit = true;
 
@@ -818,7 +818,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dx = ship.x - ast.x;
         const dy = ship.y - ast.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const radius = ast.size * 12 + 20; // larger radius for bigger ship size
+        const radius = ast.size * 12 + 26; // larger radius for scaled-up ship size
 
         if (dist < radius) {
           // Bounce ship
@@ -1118,7 +1118,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx,
         sx,
         sy,
-        ship.isPlayer ? 36 : 30, // spacecraft sizes scaled up
+        ship.isPlayer ? 46 : 38, // spacecraft sizes scaled up further for better arcade visibility
         ship.angle,
         ship.defId,
         ship.faction,
@@ -1335,8 +1335,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       </div>
 
       {/* Control Help bar */}
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-600 font-bold uppercase tracking-widest pointer-events-none">
-        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / I</kbd>
+      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-650 font-bold uppercase tracking-widest pointer-events-none">
+        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A / I</kbd>
       </div>
 
       {/* Pause Menu Overlay */}

@@ -80,59 +80,59 @@ const SOLAR_SAILER_MATRIX = [
 ];
 
 const TIE_FIGHTER_MATRIX = [
-  [0,0,1,1,1,1,1,1,1,0,0], // Top wing plate
-  [0,0,1,4,4,4,4,4,1,0,0], // Top wing solar panels
-  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut
-  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut
-  [0,0,0,4,4,4,4,4,0,0,0], // Cockpit sphere top
-  [0,0,4,4,4,4,2,2,1,0,0], // Cockpit sphere center & red glass window
-  [0,0,0,4,4,4,4,4,0,0,0], // Cockpit sphere bottom
-  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut
-  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut
-  [0,0,1,4,4,4,4,4,1,0,0], // Bottom wing solar panels
-  [0,0,1,1,1,1,1,1,1,0,0]  // Bottom wing plate
+  [0,0,4,4,4,4,4,4,4,0,0], // Top wing plate (Grey)
+  [0,0,4,1,1,1,1,1,4,0,0], // Top wing solar panels (Black)
+  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut (Grey)
+  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut (Grey)
+  [0,0,0,4,4,4,4,4,0,0,0], // Cockpit sphere top (Grey)
+  [0,0,4,4,4,4,2,2,4,0,0], // Cockpit sphere center & red glass window
+  [0,0,0,4,4,4,4,4,0,0,0], // Cockpit sphere bottom (Grey)
+  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut (Grey)
+  [0,0,0,0,0,4,0,0,0,0,0], // Connecting strut (Grey)
+  [0,0,4,1,1,1,1,1,4,0,0], // Bottom wing solar panels (Black)
+  [0,0,4,4,4,4,4,4,4,0,0]  // Bottom wing plate (Grey)
 ];
 
 const TIE_VADER_MATRIX = [
-  [0,1,1,1,1,1,1,1,0,0,0], // Curved wing curves inward at the back
-  [1,1,4,4,4,4,4,1,1,0,0],
-  [1,4,0,0,0,4,0,0,4,1,0], // Curved ends
+  [0,4,4,4,4,4,4,4,0,0,0], // Curved wing curves inward at the back
+  [4,4,1,1,1,1,1,4,4,0,0], // Black solar panels
+  [4,1,0,0,0,4,0,0,1,4,0], // Black panels
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
   [0,0,0,4,4,4,4,4,0,0,0],
-  [0,0,4,4,4,4,2,2,1,0,0], // Cockpit
+  [0,0,4,4,4,4,2,2,4,0,0], // Cockpit
   [0,0,0,4,4,4,4,4,0,0,0],
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
-  [1,4,0,0,0,4,0,0,4,1,0], // Curved ends
-  [1,1,4,4,4,4,4,1,1,0,0],
-  [0,1,1,1,1,1,1,1,0,0,0]
+  [4,1,0,0,0,4,0,0,1,4,0],
+  [4,4,1,1,1,1,1,4,4,0,0],
+  [0,4,4,4,4,4,4,4,0,0,0]
 ];
 
 const TIE_N2_MATRIX = [
-  [1,1,1,1,1,1,0,0,0,1,0], // Sleek prototype angled dagger wings
-  [0,1,4,4,4,4,4,1,1,0,0],
-  [0,0,1,4,4,0,0,0,0,0,0], // Wing root
+  [4,4,4,4,4,4,0,0,0,4,0], // Sleek prototype angled dagger wings
+  [0,4,1,1,1,1,1,4,4,0,0], // Black solar panels
+  [0,0,4,1,1,0,0,0,0,0,0], // Black solar panels
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
   [0,0,0,4,4,4,4,4,0,0,0],
-  [0,0,4,4,4,4,2,2,1,0,0], // Cockpit
+  [0,0,4,4,4,4,2,2,4,0,0], // Cockpit
   [0,0,0,4,4,4,4,4,0,0,0],
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
-  [0,0,1,4,4,0,0,0,0,0,0],
-  [0,1,4,4,4,4,4,1,1,0,0],
-  [1,1,1,1,1,1,0,0,0,1,0]
+  [0,0,4,1,1,0,0,0,0,0,0],
+  [0,4,1,1,1,1,1,4,4,0,0],
+  [4,4,4,4,4,4,0,0,0,4,0]
 ];
 
 const TIE_SILENCER_MATRIX = [
-  [1,1,1,1,1,1,1,1,1,1,1], // Long razor wings extending far past cockpit
-  [1,4,4,4,4,4,4,4,4,4,1],
-  [0,1,1,4,4,0,0,0,0,0,0],
+  [4,4,4,4,4,4,4,4,4,4,4], // Long razor wings extending far past cockpit
+  [4,1,1,1,1,1,1,1,1,1,4], // Black panels
+  [0,4,4,1,1,0,0,0,0,0,0],
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
   [0,0,0,4,4,4,4,4,0,0,0],
-  [3,4,4,4,4,4,2,2,1,0,0], // Cockpit with engine flame at back
+  [3,4,4,4,4,4,2,2,4,0,0], // Cockpit with engine flame at back
   [0,0,0,4,4,4,4,4,0,0,0],
   [0,0,0,0,0,4,0,0,0,0,0], // Strut
-  [0,0,1,1,4,4,0,0,0,0,0],
-  [1,4,4,4,4,4,4,4,4,4,1],
-  [1,1,1,1,1,1,1,1,1,1,1]
+  [0,0,4,4,1,1,0,0,0,0,0],
+  [4,1,1,1,1,1,1,1,1,1,4],
+  [4,4,4,4,4,4,4,4,4,4,4]
 ];
 
 // Helper to resolve ship matrices
@@ -170,6 +170,59 @@ export function drawPixelShip(
   const xCenter = (cols - 1) / 2;
   const yCenter = (rows - 1) / 2;
 
+  // Determine ship-specific colors
+  let accentColor = color;
+  let glassColor = faction === 'light' ? '#38bdf8' : '#ef4444';
+  let hullColor = faction === 'light' ? '#cbd5e1' : '#334155';
+
+  switch (defId) {
+    case 'x_wing':
+      accentColor = '#ef4444'; // Red squadron stripes
+      glassColor = '#38bdf8';  // Light blue glass
+      hullColor = '#e2e8f0';   // Classic rebel off-white/light grey
+      break;
+    case 'falcon':
+      accentColor = '#b91c1c'; // Dark red trim
+      glassColor = '#67e8f9';  // Blue cockpit glow
+      hullColor = '#cbd5e1';   // Weathered beige grey
+      break;
+    case 'delta_7':
+      accentColor = '#dc2626'; // Obi-Wan's red markings
+      glassColor = '#38bdf8';  // Blue glass
+      hullColor = '#f8fafc';   // Clean white hull
+      break;
+    case 'jedi_interceptor':
+      accentColor = '#eab308'; // Anakin's yellow markings
+      glassColor = '#4ade80';  // Green cockpit glass
+      hullColor = '#334155';   // Dark metallic grey hull
+      break;
+    case 'solar_sailer':
+      accentColor = '#ea580c'; // Bronze solar sail
+      glassColor = '#ef4444';  // Red glass
+      hullColor = '#451a03';   // Deep copper metallic hull
+      break;
+    case 'tie_fighter':
+      accentColor = '#18181b'; // Black solar panels
+      glassColor = '#f87171';  // Orange-red glow window
+      hullColor = '#94a3b8';   // Standard light blue-grey Imperial metal
+      break;
+    case 'tie_vader':
+      accentColor = '#09090b'; // Obsidian black panels
+      glassColor = '#ef4444';  // Dark red window
+      hullColor = '#475569';   // Dark metallic grey
+      break;
+    case 'tie_n2':
+      accentColor = '#b91c1c'; // Glowing red energy lines
+      glassColor = '#f97316';  // Orange cockpit window
+      hullColor = '#1e293b';   // Dark carbon metal
+      break;
+    case 'tie_silencer':
+      accentColor = '#020617'; // Midnight black panels
+      glassColor = '#b91c1c';  // Crimson cockpit glass
+      hullColor = '#334155';   // Dark blue-grey hull
+      break;
+  }
+
   // Pixel size calculated from requested render size
   const pixelSize = size / cols;
 
@@ -190,10 +243,10 @@ export function drawPixelShip(
 
       switch (cellValue) {
         case 1: // Faction Neon Accent
-          ctx.fillStyle = color;
+          ctx.fillStyle = accentColor;
           break;
         case 2: // Cockpit Glass
-          ctx.fillStyle = faction === 'light' ? '#38bdf8' : '#ef4444';
+          ctx.fillStyle = glassColor;
           break;
         case 3: // Engine Thruster Flame (flashes if ship is moving)
           if (isMoving && Math.random() < 0.75) {
@@ -203,7 +256,7 @@ export function drawPixelShip(
           }
           break;
         case 4: // Main Hull Armor
-          ctx.fillStyle = faction === 'light' ? '#cbd5e1' : '#334155'; // Grey Rebel / Slate Imperial
+          ctx.fillStyle = hullColor;
           break;
         default:
           ctx.fillStyle = '#ffffff';

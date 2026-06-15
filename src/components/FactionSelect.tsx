@@ -69,7 +69,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
         ctx,
         canvas.width / 2,
         canvas.height / 2,
-        45, // size
+        60, // size
         rotateAngle.current,
         currentShip.id,
         currentShip.faction,
