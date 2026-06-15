@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Faction, SpaceShip, Laser, Particle, Asteroid, GameState } from '../types/space';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { LIGHT_SHIPS, DARK_SHIPS, getShipDefById } from '../utils/spaceShips';
-import { Shield, Skull, Award, User, RefreshCw } from 'lucide-react';
+import { Shield, Skull, Award, User, RefreshCw, Gamepad2 } from 'lucide-react';
 
 interface SpaceCanvasProps {
   faction: Faction;
@@ -82,6 +82,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const isPausedRef = useRef(false);
   const [pauseSelect, setPauseSelect] = useState<'resume' | 'quit'>('resume');
 
+  // Gamepad controller active state and menu navigation tracking refs
+  const [gamepadConnected, setGamepadConnected] = useState(false);
+  const gpStartPressed = useRef(false);
+  const gpSelectPressed = useRef(false);
+  const gpLastNavTime = useRef(0);
+
   // Match timer (3 minutes = 180 seconds)
   const [matchTimeLeft, setMatchTimeLeft] = useState(180);
   const [isMatchOver, setIsMatchOver] = useState(false);
@@ -119,6 +125,30 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   useEffect(() => {
     matchTimeLeftRef.current = matchTimeLeft;
   }, [matchTimeLeft]);
+
+  // Handle gamepad connection events
+  useEffect(() => {
+    const handleConnect = () => setGamepadConnected(true);
+    const handleDisconnect = () => {
+      const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+      const anyGp = gps ? Array.from(gps).some(g => g !== null) : false;
+      setGamepadConnected(anyGp);
+    };
+
+    window.addEventListener('gamepadconnected', handleConnect);
+    window.addEventListener('gamepaddisconnected', handleDisconnect);
+
+    // Initial check
+    const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+    if (gps && Array.from(gps).some(g => g !== null)) {
+      setGamepadConnected(true);
+    }
+
+    return () => {
+      window.removeEventListener('gamepadconnected', handleConnect);
+      window.removeEventListener('gamepaddisconnected', handleDisconnect);
+    };
+  }, []);
 
   // Hide body scrollbars during battle
   useEffect(() => {
@@ -409,6 +439,97 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     };
   }, [pauseSelect, isDead, isMatchOver]);
 
+  // Gamepad controller menu navigation for Pause screen
+  useEffect(() => {
+    if (!isPaused) return;
+
+    const interval = setInterval(() => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads ? Array.from(gamepads).find(g => g !== null) : null;
+      if (!gp) return;
+
+      const deadzone = 0.5;
+      const ly = gp.axes[1] || 0;
+      const dpadUp = gp.buttons[12]?.pressed;
+      const dpadDown = gp.buttons[13]?.pressed;
+      const selectBtn = gp.buttons[0]?.pressed; // A button (Cross)
+      const startBtn = gp.buttons[9]?.pressed; // Start button
+
+      // Start button toggles pause off
+      if (startBtn && !gpStartPressed.current) {
+        setIsPaused(false);
+        gpStartPressed.current = true;
+        return;
+      } else if (!startBtn) {
+        gpStartPressed.current = false;
+      }
+
+      const now = Date.now();
+      if (now - gpLastNavTime.current > 220) {
+        if (ly < -deadzone || dpadUp) {
+          setPauseSelect(prev => prev === 'resume' ? 'quit' : 'resume');
+          gpLastNavTime.current = now;
+        } else if (ly > deadzone || dpadDown) {
+          setPauseSelect(prev => prev === 'resume' ? 'quit' : 'resume');
+          gpLastNavTime.current = now;
+        }
+      }
+
+      if (selectBtn && !gpSelectPressed.current) {
+        gpSelectPressed.current = true;
+        if (pauseSelect === 'resume') {
+          setIsPaused(false);
+        } else {
+          setIsPaused(false);
+          onExit();
+        }
+      } else if (!selectBtn) {
+        gpSelectPressed.current = false;
+      }
+    }, 16); // ~60fps poll
+
+    return () => clearInterval(interval);
+  }, [isPaused, pauseSelect]);
+
+  // Gamepad controller menu navigation for Respawn screen
+  useEffect(() => {
+    if (!isDead || isMatchOver) return;
+
+    const interval = setInterval(() => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads ? Array.from(gamepads).find(g => g !== null) : null;
+      if (!gp) return;
+
+      const lx = gp.axes[0] || 0;
+      const deadzone = 0.5;
+      const dpadLeft = gp.buttons[14]?.pressed;
+      const dpadRight = gp.buttons[15]?.pressed;
+      const selectBtn = gp.buttons[0]?.pressed; // A button to deploy
+
+      const now = Date.now();
+      const shipsList = faction === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
+      const currentIndex = shipsList.findIndex(s => s.id === respawnShipId);
+
+      if (now - gpLastNavTime.current > 200) {
+        if (lx < -deadzone || dpadLeft) {
+          const nextIndex = (currentIndex - 1 + shipsList.length) % shipsList.length;
+          setRespawnShipId(shipsList[nextIndex].id);
+          gpLastNavTime.current = now;
+        } else if (lx > deadzone || dpadRight) {
+          const nextIndex = (currentIndex + 1) % shipsList.length;
+          setRespawnShipId(shipsList[nextIndex].id);
+          gpLastNavTime.current = now;
+        }
+      }
+
+      if (selectBtn && respawnTimeLeft === 0) {
+        respawnPlayer();
+      }
+    }, 16);
+
+    return () => clearInterval(interval);
+  }, [isDead, respawnShipId, respawnTimeLeft, faction]);
+
   // Main 60fps Game Tick Loop
   useEffect(() => {
     let animationFrameId: number;
@@ -508,18 +629,62 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const accel = 0.24;
       const controlSign = faction === 'light' ? -1 : 1;
 
-      // ZQSD movement (oriented relative to player's screen view)
-      if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
-        ay = -accel * controlSign;
+      // Poll Gamepad inputs if a controller is connected
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads ? Array.from(gamepads).find(g => g !== null) : null;
+      
+      let gpAx = 0;
+      let gpAy = 0;
+      let gpShoot = false;
+      let gpPausedToggle = false;
+
+      if (gp) {
+        const lx = gp.axes[0] || 0;
+        const ly = gp.axes[1] || 0;
+        const deadzone = 0.15;
+
+        if (Math.abs(lx) > deadzone) gpAx = lx;
+        if (Math.abs(ly) > deadzone) gpAy = ly;
+
+        // Button 3 is the top of the right 4 buttons (Y/Triangle)
+        if (gp.buttons[3] && gp.buttons[3].pressed) {
+          gpShoot = true;
+        }
+
+        // Button 9 is Start
+        if (gp.buttons[9]) {
+          if (gp.buttons[9].pressed && !gpStartPressed.current) {
+            gpPausedToggle = true;
+            gpStartPressed.current = true;
+          } else if (!gp.buttons[9].pressed) {
+            gpStartPressed.current = false;
+          }
+        }
       }
-      if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
-        ay = accel * controlSign;
+
+      // Handle controller pause toggle
+      if (gpPausedToggle && !isDead && !isMatchOver) {
+        setIsPaused(prev => !prev);
       }
-      if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
-        ax = -accel * controlSign;
-      }
-      if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
-        ax = accel * controlSign;
+
+      // Set movement forces: Controller Joystick overrides Keyboard
+      if (gpAx !== 0 || gpAy !== 0) {
+        ax = gpAx * accel * controlSign;
+        ay = gpAy * accel * controlSign;
+      } else {
+        // Keyboard ZQSD movement
+        if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
+          ay = -accel * controlSign;
+        }
+        if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
+          ay = accel * controlSign;
+        }
+        if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
+          ax = -accel * controlSign;
+        }
+        if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
+          ax = accel * controlSign;
+        }
       }
 
       // Apply forces
@@ -566,15 +731,34 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player.y = Math.max(50, Math.min(WORLD_SIZE - 50, player.y));
       }
 
-      // Steer/Aim towards mouse cursor (taking camera rotation into account)
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const screenCenterX = canvas.width / 2;
-        const screenCenterY = canvas.height / 2;
-        const dx = mousePos.current.x - screenCenterX;
-        const dy = mousePos.current.y - screenCenterY;
-        // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
-        player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+      // Controller / Mouse Aiming Direction
+      let aimed = false;
+      if (gp) {
+        const rx = gp.axes[2] || 0;
+        const ry = gp.axes[3] || 0;
+        const rightDeadzone = 0.18;
+        const rightStickDist = Math.sqrt(rx * rx + ry * ry);
+
+        if (rightStickDist > rightDeadzone) {
+          player.angle = Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0);
+          aimed = true;
+        } else if (gpAx !== 0 || gpAy !== 0) {
+          // Move-to-face: face left joystick movement angle
+          player.angle = Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0);
+          aimed = true;
+        }
+      }
+
+      if (!aimed) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const screenCenterX = canvas.width / 2;
+          const screenCenterY = canvas.height / 2;
+          const dx = mousePos.current.x - screenCenterX;
+          const dy = mousePos.current.y - screenCenterY;
+          // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
+          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+        }
       }
 
       // Engine particles
@@ -593,8 +777,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         });
       }
 
-      // Shoot trigger (using Left Click, KeyI, or KeyQ which corresponds to physical 'A' on AZERTY / 'Q' on QWERTY)
-      if (isMouseDown.current || keysPressed.current['KeyI'] || keysPressed.current['KeyQ']) {
+      // Shoot trigger (using Left Click, KeyI, KeyQ, or Gamepad Y/Triangle Button 3)
+      if (isMouseDown.current || keysPressed.current['KeyI'] || keysPressed.current['KeyQ'] || gpShoot) {
         const now = Date.now();
         if (now - player.lastShotTime >= player.stats.rate) {
           fireLaser(player);
@@ -1448,11 +1632,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         </div>
 
         {/* Faction Score (Light vs Dark kills) */}
-        <div className="flex gap-4 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] font-bold">
+        <div className="flex gap-4 items-center bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] font-bold">
+          {gamepadConnected && (
+            <span className="text-sky-400 animate-pulse flex items-center gap-1 mr-1 text-[8px] tracking-wider uppercase">
+              <Gamepad2 className="w-3.5 h-3.5" /> GP-ACTIVE
+            </span>
+          )}
           <span className="text-emerald-400 flex items-center gap-1">
             LIGHT SIDE: <span className="text-white crt-glow">{hud.lightKills}</span>
           </span>
-          <span className="text-zinc-600">|</span>
+          <span className="text-zinc-700">|</span>
           <span className="text-rose-500 flex items-center gap-1">
             DARK SIDE: <span className="text-white crt-glow">{hud.darkKills}</span>
           </span>
