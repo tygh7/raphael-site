@@ -21,16 +21,24 @@ export const SpaceRules: React.FC = () => {
           </h3>
           <ul className="space-y-3 list-none pl-0">
             <li className="flex gap-2">
-              <span className="text-sky-500 font-bold font-mono">ZQSD / WASD:</span>
-              <p>Accelerate and steer in absolute directions. The thruster particles trail behind your ship's movement.</p>
+              <span className="text-sky-500 font-bold font-mono">Z / W (FORWARD):</span>
+              <p>Fly forward towards the center. Hold to activate high-velocity speed boost.</p>
             </li>
             <li className="flex gap-2">
-              <span className="text-sky-500 font-bold font-mono">MOUSE AIMING:</span>
-              <p>Your ship rotates automatically to align its laser cannons with your mouse cursor on the screen.</p>
+              <span className="text-sky-500 font-bold font-mono">S (BRAKE):</span>
+              <p>Brake / decelerate to get a better targeting lock on enemy interceptors.</p>
             </li>
             <li className="flex gap-2">
-              <span className="text-sky-500 font-bold font-mono">LEFT CLICK / A / I:</span>
-              <p>Fire your primary laser cannons! Hold to autofire at your ship's specific frequency.</p>
+              <span className="text-sky-500 font-bold font-mono">Q / A / D (ROLL):</span>
+              <p>Dodge incoming lasers by banking or doing barrel-rolls to the left (Q/A) or right (D).</p>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-sky-500 font-bold font-mono">MOUSE STEER/AIM:</span>
+              <p>Move your mouse crosshair to steer the starfighter's nose and direct your laser cannons.</p>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-sky-500 font-bold font-mono">CLICK / A / I:</span>
+              <p>Fire lasers. Hold to autofire. Physical 'A' (AZERTY KeyQ) maps layout-independently.</p>
             </li>
           </ul>
         </div>
@@ -42,16 +50,20 @@ export const SpaceRules: React.FC = () => {
           </h3>
           <ul className="space-y-3 list-none pl-0">
             <li className="flex gap-2">
-              <span className="text-rose-500 font-bold font-mono">Allies:</span>
-              <p>Your side's AI fleet patrols beside you and automatically locks on and attacks enemy interceptors.</p>
+              <span className="text-rose-500 font-bold font-mono">Bases & Center:</span>
+              <p>Light spawns at North Base (-3000 Z) and Dark spawns at South Base (3000 Z). Both fly forward to clash in the center.</p>
             </li>
             <li className="flex gap-2">
-              <span className="text-rose-500 font-bold font-mono">Enemies:</span>
-              <p>The opposing faction will warp in replacements continuously to hunt down you and your wingmen.</p>
+              <span className="text-rose-500 font-bold font-mono">Hyperspace Warps:</span>
+              <p>Reaching the enemy hangar initiates a hyperspace jump, warping you back to base for another attack run.</p>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-rose-500 font-bold font-mono">Allies & Defend:</span>
+              <p>80 fighters (40v40) engage in combat. Your wingmen will actively intercept enemies pursuing you!</p>
             </li>
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Asteroids:</span>
-              <p>Drifting asteroids block movement. Shoot them to break them into smaller high-velocity rock fragments!</p>
+              <p>Drifting asteroids block movement. Collision causes heavy damage, so shoot to fragment or dodge them!</p>
             </li>
           </ul>
         </div>

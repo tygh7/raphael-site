@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Faction, SpaceShip, Laser, Particle, Asteroid, GameState } from '../types/space';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { LIGHT_SHIPS, DARK_SHIPS, getShipDefById } from '../utils/spaceShips';
-import { Shield, Skull, Award, User, RefreshCw } from 'lucide-react';
+import { Shield, Skull, Award, User } from 'lucide-react';
 
 interface SpaceCanvasProps {
   faction: Faction;
@@ -11,9 +11,9 @@ interface SpaceCanvasProps {
   onExit: () => void;
 }
 
-const WORLD_SIZE = 8000;
-const INITIAL_ASTEROIDS = 80;
-const LASER_SPEED = 11.0;
+// 3D Space Volume Constants
+const WORLD_DEPTH = 12000;
+const INITIAL_ASTEROIDS = 60;
 
 const LIGHT_PILOT_NAMES = [
   'Wedge Antilles',
@@ -58,7 +58,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const mousePos = useRef({ x: 0, y: 0 });
   const isMouseDown = useRef(false);
 
-  // Local game states to sync with React UI
+  // 3D Camera coordinates
+  const camera = useRef({ x: 0, y: 0, z: 0 });
+
+  // HUD sync state
   const [hud, setHud] = useState({
     hp: 100,
     maxHp: 100,
@@ -92,7 +95,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Screen shake timer/amplitude
   const screenShake = useRef({ duration: 0, amplitude: 0 });
 
-  // Core Game Loop State (held in refs for high-frequency 60fps tick rate without React re-renders)
+  // Core Game Loop State (held in refs for 60fps tick rate without React re-renders)
   const game = useRef<GameState>({
     playerShip: null,
     faction: faction,
@@ -100,15 +103,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     lasers: [],
     particles: [],
     asteroids: [],
-    worldSize: WORLD_SIZE,
+    worldSize: WORLD_DEPTH,
     score: 0,
     kills: 0,
     deaths: 0
   });
 
-  // Parallax stars background (pre-generated)
-  const starsBackground = useRef<{ x: number; y: number; size: number; speed: number; color: string }[]>([]);
-  const nebulas = useRef<{ x: number; y: number; r: number; color: string }[]>([]);
+  // 3D Starfield coordinates
+  const starsBackground = useRef<{ x: number; y: number; z: number; size: number; color: string }[]>([]);
 
   // Sync refs with state
   useEffect(() => {
@@ -142,27 +144,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Initialize background starfields once (Galaga style colored chunky stars)
+  // Initialize background starfields in 3D
   useEffect(() => {
-    const stars: { x: number; y: number; size: number; speed: number; color: string }[] = [];
+    const stars: { x: number; y: number; z: number; size: number; color: string }[] = [];
     const colors = ['#ffffff', '#ffffff', '#eab308', '#38bdf8', '#ef4444', '#ca8a04', '#a855f7'];
-    for (let i = 0; i < 450; i++) {
+    for (let i = 0; i < 500; i++) {
       stars.push({
-        x: Math.random() * 3000,
-        y: Math.random() * 3000,
-        size: Math.random() < 0.25 ? 3.0 : 1.5,
-        speed: Math.random() < 0.35 ? 0.3 : 0.12,
+        x: (Math.random() - 0.5) * 6000,
+        y: (Math.random() - 0.5) * 3000,
+        z: Math.random() * 3000,
+        size: Math.random() < 0.25 ? 4.0 : 1.8,
         color: colors[Math.floor(Math.random() * colors.length)]
       });
     }
     starsBackground.current = stars;
-
-    nebulas.current = [
-      { x: 1500, y: 1500, r: 800, color: 'rgba(99, 102, 241, 0.05)' },
-      { x: 5500, y: 2500, r: 1000, color: 'rgba(239, 68, 68, 0.04)' },
-      { x: 3000, y: 6000, r: 900, color: 'rgba(16, 185, 129, 0.04)' },
-      { x: 6500, y: 5500, r: 850, color: 'rgba(14, 165, 233, 0.05)' }
-    ];
   }, []);
 
   // Match timer countdown (runs every second)
@@ -203,21 +198,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     };
   }, [isDead, isMatchOver]);
 
-  // Helper to generate a random ship from a faction with unique pilot name
+  // Helper to generate a random ship from a faction with unique pilot name in 3D
   const createAiShipWithPilot = (fact: Faction, index: number): SpaceShip => {
     const list = fact === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
     const def = list[Math.floor(Math.random() * list.length)];
     const namesList = fact === 'light' ? LIGHT_PILOT_NAMES : DARK_PILOT_NAMES;
     const pilotName = namesList[index % namesList.length];
 
-    // Spawn inside respective faction base zone
-    const x = Math.random() * (WORLD_SIZE - 800) + 400;
-    let y = 0;
-    if (fact === 'light') {
-      y = 200 + Math.random() * 500; // North base area
-    } else {
-      y = WORLD_SIZE - 700 + Math.random() * 500; // South base area
-    }
+    // Distribute X, Y and Z relative to faction bases
+    const x = (Math.random() - 0.5) * 3000;
+    const y = (Math.random() - 0.5) * 1000;
+    
+    // Light spawns near -3000, Dark spawns near 3000
+    const factionZDirection = fact === 'light' ? 1 : -1;
+    const baseZ = -3000 * factionZDirection;
+    // Spread them out along the flight path
+    const z = baseZ + factionZDirection * (Math.random() * 1800);
 
     return {
       id: `ai_${fact}_${index}_${Math.random().toString(36).substr(2, 5)}`,
@@ -226,9 +222,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       faction: fact,
       x,
       y,
-      vx: 0,
-      vy: 0,
-      angle: fact === 'light' ? Math.PI / 2 : -Math.PI / 2,
+      z,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2,
+      vz: factionZDirection * def.stats.speed * (2.0 + Math.random() * 2.0), // increased speed
+      angle: 0,
+      roll: 0,
+      pitch: 0,
+      yaw: 0,
       hp: def.stats.shield,
       maxHp: def.stats.shield,
       lastShotTime: 0,
@@ -242,21 +243,25 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     };
   };
 
-  // Helper to trigger particles (chunkier retro explosion fragments)
-  const spawnExplosion = (x: number, y: number, color: string, count = 20) => {
+  // Helper to trigger particles in 3D space
+  const spawnExplosion = (x: number, y: number, z: number, color: string, count = 20) => {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.5 + Math.random() * 3;
+      const verticalAngle = (Math.random() - 0.5) * Math.PI;
+      const speed = 2.0 + Math.random() * 8;
+      
       game.current.particles.push({
         id: `p_${Math.random()}`,
         x,
         y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 25 + Math.floor(Math.random() * 25),
-        maxLife: 50,
+        z,
+        vx: Math.cos(angle) * Math.cos(verticalAngle) * speed,
+        vy: Math.sin(verticalAngle) * speed,
+        vz: Math.sin(angle) * Math.cos(verticalAngle) * speed,
+        life: 20 + Math.floor(Math.random() * 20),
+        maxLife: 40,
         color,
-        size: Math.random() < 0.3 ? 4 : 2
+        size: Math.random() < 0.3 ? 5 : 2.5
       });
     }
   };
@@ -264,27 +269,24 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Start / Reset Space Match
   const initGame = () => {
     const playerDef = getShipDefById(selectedShipId)!;
-    
-    // Spawn player in their faction's base
-    const px = Math.random() * (WORLD_SIZE - 800) + 400;
-    let py = 0;
-    if (faction === 'light') {
-      py = 200 + Math.random() * 500; // North Base
-    } else {
-      py = WORLD_SIZE - 700 + Math.random() * 500; // South Base
-    }
+    const pForwardZ = faction === 'light' ? 1 : -1;
 
-    // 1. Create player
+    // 1. Create player at their faction base facing the center
     const player: SpaceShip = {
       id: 'player',
       defId: selectedShipId,
       name: `Rogue Leader (You)`,
       faction: faction,
-      x: px,
-      y: py,
+      x: 0,
+      y: 0,
+      z: -2900 * pForwardZ,
       vx: 0,
       vy: 0,
-      angle: faction === 'light' ? Math.PI / 2 : -Math.PI / 2,
+      vz: pForwardZ * playerDef.stats.speed * 4.5,
+      angle: 0,
+      roll: 0,
+      pitch: 0,
+      yaw: 0,
       hp: playerDef.stats.shield,
       maxHp: playerDef.stats.shield,
       lastShotTime: 0,
@@ -294,6 +296,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       kills: 0,
       deaths: 0
     };
+
+    camera.current = { x: 0, y: 40, z: -2900 * pForwardZ - 260 * pForwardZ };
 
     game.current.playerShip = player;
     game.current.ships = [player];
@@ -307,30 +311,32 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     setIsMatchOver(false);
     setMatchTimeLeft(180);
 
-    // 2. Spawn Asteroids
+    // 2. Spawn Asteroids in 3D scattered across the battle arena
     const asteroids: Asteroid[] = [];
     for (let i = 0; i < INITIAL_ASTEROIDS; i++) {
       asteroids.push({
         id: `ast_${i}`,
-        x: Math.random() * WORLD_SIZE,
-        y: Math.random() * (WORLD_SIZE - 1800) + 900, // spawn mostly in the middle neutral zone
-        vx: (Math.random() - 0.5) * 0.7,
-        vy: (Math.random() - 0.5) * 0.7,
+        x: (Math.random() - 0.5) * 4000,
+        y: (Math.random() - 0.5) * 1800,
+        z: (Math.random() - 0.5) * 5000,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        vz: (Math.random() - 0.5) * 1.5,
         size: Math.floor(Math.random() * 3) + 1,
         hp: 40
       });
     }
     game.current.asteroids = asteroids;
 
-    // 3. Spawn Fleet AI (even number of fighters: 16 vs 16)
-    const teamSize = 16;
+    // 3. Spawn Fleet AI (total 80 fighters: 40 vs 40)
+    const teamSize = 40;
     const oppFaction = faction === 'light' ? 'dark' : 'light';
     
-    // Spawn team AI (9 allies + player = 10)
+    // Spawn team AI (39 allies + player = 40)
     for (let i = 0; i < teamSize - 1; i++) {
       game.current.ships.push(createAiShipWithPilot(faction, i));
     }
-    // Spawn opponent AI (10 enemies)
+    // Spawn opponent AI (40 enemies)
     for (let i = 0; i < teamSize; i++) {
       game.current.ships.push(createAiShipWithPilot(oppFaction, i));
     }
@@ -426,14 +432,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const respawnPlayer = () => {
     const state = game.current;
     const playerDef = getShipDefById(respawnShipId)!;
-    
-    const px = Math.random() * (WORLD_SIZE - 800) + 400;
-    let py = 0;
-    if (faction === 'light') {
-      py = 200 + Math.random() * 500;
-    } else {
-      py = WORLD_SIZE - 700 + Math.random() * 500;
-    }
+    const pForwardZ = faction === 'light' ? 1 : -1;
 
     if (state.playerShip) {
       state.playerShip.defId = respawnShipId;
@@ -442,12 +441,19 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.stats = playerDef.stats;
       state.playerShip.hp = playerDef.stats.shield;
       state.playerShip.maxHp = playerDef.stats.shield;
-      state.playerShip.x = px;
-      state.playerShip.y = py;
+      state.playerShip.x = 0;
+      state.playerShip.y = 0;
+      state.playerShip.z = -2900 * pForwardZ; // spawn at faction base
       state.playerShip.vx = 0;
       state.playerShip.vy = 0;
-      state.playerShip.angle = faction === 'light' ? Math.PI / 2 : -Math.PI / 2;
+      state.playerShip.vz = pForwardZ * playerDef.stats.speed * 4.5;
+      state.playerShip.roll = 0;
+      state.playerShip.pitch = 0;
+      state.playerShip.yaw = 0;
     }
+    camera.current.z = -2900 * pForwardZ - 260 * pForwardZ;
+    camera.current.x = 0;
+    camera.current.y = 45;
     setIsDead(false);
   };
 
@@ -487,7 +493,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
   };
 
-  // Physics Updates
+  // 3D Physics Update Loop
   const updateGamePhysics = () => {
     if (isPausedRef.current || isMatchOver) return;
     const state = game.current;
@@ -498,78 +504,90 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       screenShake.current.duration -= 1;
     }
 
-    // --- 2. Update Player Ship Physics ---
+    // --- 2. Update Player Ship Physics (3D Behind View) ---
     const player = state.playerShip;
+    const forwardZ = faction === 'light' ? 1 : -1;
+
+    // Check for hyperspace loop
+    if (player.hp > 0 && (player.z || 0) * forwardZ > 2900) {
+      // Warp player back to base
+      player.z = -2900 * forwardZ;
+      camera.current.z = (player.z || 0) - 260 * forwardZ;
+      camera.current.x = player.x;
+      camera.current.y = player.y + 45;
+      
+      // Spawn hyperspace particles
+      spawnExplosion(player.x, player.y, player.z || 0, player.color, 45);
+      screenShake.current = { duration: 25, amplitude: 12 };
+    }
+
     if (player.hp > 0) {
-      let ax = 0;
-      let ay = 0;
-      const accel = 0.24;
-
-      // ZQSD movement
-      if (keysPressed.current['KeyW'] || keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp']) {
-        ay = -accel;
-      }
-      if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
-        ay = accel;
-      }
-      if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
-        ax = -accel;
-      }
-      if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
-        ax = accel;
-      }
-
-      // Apply forces
-      player.vx += ax;
-      player.vy += ay;
-
-      // Friction/Damping
-      player.vx *= 0.96;
-      player.vy *= 0.96;
-
-      // Speed clamp (faster gameplay)
-      const maxSpeed = player.stats.speed * 0.65;
-      const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-      if (currentSpeed > maxSpeed) {
-        player.vx = (player.vx / currentSpeed) * maxSpeed;
-        player.vy = (player.vy / currentSpeed) * maxSpeed;
-      }
-
-      // Update position
-      player.x += player.vx;
-      player.y += player.vy;
-
-      // Keep player inside world bounds
-      player.x = Math.max(50, Math.min(WORLD_SIZE - 50, player.x));
-      player.y = Math.max(50, Math.min(WORLD_SIZE - 50, player.y));
-
-      // Steer/Aim towards mouse cursor
       const canvas = canvasRef.current;
       if (canvas) {
-        const screenCenterX = canvas.width / 2;
-        const screenCenterY = canvas.height / 2;
-        const dx = mousePos.current.x - screenCenterX;
-        const dy = mousePos.current.y - screenCenterY;
-        player.angle = Math.atan2(dy, dx);
+        // Guide X/Y movements based on crosshair offset from screen center
+        const mouseDx = (mousePos.current.x - canvas.width / 2) / (canvas.width / 2);
+        const mouseDy = -(mousePos.current.y - canvas.height / 2) / (canvas.height / 2); // invert Y
+
+        // Multiply by forwardZ so ship follows reticle correctly in inverted Z view
+        player.vx += mouseDx * forwardZ * 2.0;
+        player.vy += mouseDy * 1.8;
       }
 
-      // Engine particles
-      if ((ax !== 0 || ay !== 0) && Math.random() < 0.4) {
-        const flameAngle = player.angle + Math.PI + (Math.random() - 0.5) * 0.4;
+      // Roll and Yaw banking adjustments with Q/D dodge keys
+      if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
+        player.vx -= 3.0 * forwardZ;
+        player.roll = Math.max(-0.6, (player.roll || 0) - 0.08);
+      } else if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
+        player.vx += 3.0 * forwardZ;
+        player.roll = Math.min(0.6, (player.roll || 0) + 0.08);
+      } else {
+        player.roll = (player.roll || 0) * 0.88; // return to balance
+      }
+
+      // Z Accelerate (boost) / S deceleration (brake)
+      const baseSpeed = player.stats.speed;
+      let targetVz = forwardZ * baseSpeed * 5.0; // cruising speed in 3D
+      if (keysPressed.current['KeyW'] || keysPressed.current['ArrowUp']) {
+        targetVz = forwardZ * baseSpeed * 8.5; // Hyperspace Boost speed
+      } else if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
+        targetVz = forwardZ * baseSpeed * 1.5; // Brake speed
+      }
+
+      player.vz = (player.vz || 0) + (targetVz - (player.vz || 0)) * 0.08;
+
+      // Friction damping
+      player.vx *= 0.82;
+      player.vy *= 0.82;
+
+      // Position update
+      player.x += player.vx;
+      player.y += player.vy;
+      player.z = (player.z || 0) + (player.vz || 0);
+
+      // Boundaries inside the 3D tunnel box
+      player.x = Math.max(-2000, Math.min(2000, player.x));
+      player.y = Math.max(-950, Math.min(950, player.y));
+      player.pitch = player.vy * 0.025;
+      player.yaw = player.vx * 0.025 * forwardZ;
+
+      // Engine particles in 3D
+      if (Math.random() < 0.55) {
         state.particles.push({
           id: `p_${Math.random()}`,
-          x: player.x - Math.cos(player.angle) * 16,
-          y: player.y - Math.sin(player.angle) * 16,
-          vx: Math.cos(flameAngle) * 1.5 + player.vx,
-          vy: Math.sin(flameAngle) * 1.5 + player.vy,
-          life: 10 + Math.floor(Math.random() * 10),
-          maxLife: 20,
+          x: player.x + (Math.random() - 0.5) * 20,
+          y: player.y - 6 + (Math.random() - 0.5) * 8,
+          z: player.z - 25 * forwardZ,
+          vx: player.vx * 0.5,
+          vy: player.vy * 0.5,
+          vz: (player.vz || 0) - 15 * forwardZ,
+          life: 15 + Math.floor(Math.random() * 15),
+          maxLife: 30,
           color: player.faction === 'light' ? '#38bdf8' : '#ef4444',
-          size: Math.random() < 0.5 ? 3 : 1.5
+          size: Math.random() < 0.5 ? 4.5 : 2
         });
       }
 
-      // Shoot trigger (using Left Click, KeyI, or KeyQ which corresponds to physical 'A' on AZERTY / 'Q' on QWERTY)
+      // Shoot trigger
       if (isMouseDown.current || keysPressed.current['KeyI'] || keysPressed.current['KeyQ']) {
         const now = Date.now();
         if (now - player.lastShotTime >= player.stats.rate) {
@@ -579,7 +597,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
-    // --- 3. Update AI Fleet Ships (Skipping dead AI) ---
+    // --- 3. Camera Chase follow coordinates ---
+    camera.current.z = (player.z || 0) - 260 * forwardZ; // offset behind relative to faction heading
+    camera.current.x += (player.x - camera.current.x) * 0.15; // lag behind ship X
+    camera.current.y += (player.y + 45 - camera.current.y) * 0.15; // lag behind ship Y + offset above
+
+    // --- 4. Update AI Fleet Ships (dogfighting in Z-depth) ---
     state.ships.forEach(ship => {
       if (ship.isPlayer) return;
       if (ship.hp <= 0) return;
@@ -589,135 +612,151 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.aiDecisionTimer -= 1;
 
       if (ship.aiDecisionTimer <= 0) {
-        ship.aiDecisionTimer = 20 + Math.floor(Math.random() * 30); // 0.5s
+        ship.aiDecisionTimer = 20 + Math.floor(Math.random() * 30);
 
-        // 1. Scan for nearest target of opposite faction
-        let nearestTarget: SpaceShip | null = null;
-        let minDist = 1200;
+        // Defender helper behavior: if ship is ally, check if any enemy is targeting player
+        const isAlly = ship.faction === faction;
+        let defenderTargetId: string | undefined = undefined;
 
-        state.ships.forEach(t => {
-          if (t.faction !== ship.faction && t.hp > 0) {
-            const dx = t.x - ship.x;
-            const dy = t.y - ship.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) {
-              minDist = dist;
-              nearestTarget = t;
-            }
+        if (isAlly) {
+          const playerPursuer = state.ships.find(
+            s => s.faction !== faction && s.targetId === 'player' && s.hp > 0
+          );
+          if (playerPursuer && Math.random() < 0.65) {
+            defenderTargetId = playerPursuer.id;
           }
-        });
+        }
 
-        if (nearestTarget) {
-          ship.targetId = (nearestTarget as SpaceShip).id;
+        if (defenderTargetId) {
+          ship.targetId = defenderTargetId;
           ship.aiState = 'chase';
         } else {
-          ship.targetId = undefined;
-          ship.aiState = 'patrol';
+          // Scan for nearest opposite faction target in 3D
+          let nearestTarget: SpaceShip | null = null;
+          let minDist = 4500;
+
+          state.ships.forEach(t => {
+            if (t.faction !== ship.faction && t.hp > 0) {
+              const dx = t.x - ship.x;
+              const dy = t.y - ship.y;
+              const dz = (t.z || 0) - (ship.z || 0);
+              const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+              if (dist < minDist) {
+                minDist = dist;
+                nearestTarget = t;
+              }
+            }
+          });
+
+          if (nearestTarget) {
+            ship.targetId = (nearestTarget as SpaceShip).id;
+            ship.aiState = 'chase';
+          } else {
+            ship.targetId = undefined;
+            ship.aiState = 'patrol';
+          }
         }
       }
 
-      // AI Execution state
+      // Execute AI
       if (ship.aiState === 'chase' && ship.targetId) {
         const target = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
         if (target) {
           const dx = target.x - ship.x;
           const dy = target.y - ship.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const dz = (target.z || 0) - (ship.z || 0);
+          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-          const targetAngle = Math.atan2(dy, dx);
-          let diff = targetAngle - ship.angle;
-          while (diff < -Math.PI) diff += Math.PI * 2;
-          while (diff > Math.PI) diff -= Math.PI * 2;
-          ship.angle += diff * 0.08;
+          const flySpeed = ship.stats.speed * 3.5;
+          const ease = 0.08;
+          ship.vx += ((dx / (dist || 1)) * flySpeed - ship.vx) * ease;
+          ship.vy += ((dy / (dist || 1)) * flySpeed - ship.vy) * ease;
+          ship.vz = (ship.vz || 0) + ((dz / (dist || 1)) * flySpeed - (ship.vz || 0)) * ease;
 
-          const aiMaxSpeed = ship.stats.speed * 0.65;
-          const accelSpeed = aiMaxSpeed * 0.08;
-          if (dist > 300) {
-            ship.vx += Math.cos(ship.angle) * accelSpeed;
-            ship.vy += Math.sin(ship.angle) * accelSpeed;
-          } else if (dist < 150) {
-            ship.vx -= Math.cos(ship.angle) * accelSpeed;
-            ship.vy -= Math.sin(ship.angle) * accelSpeed;
-          }
-
-          if (Math.random() < 0.05) {
-            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
-            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
-          }
+          ship.roll = ship.vx * 0.035;
 
           const now = Date.now();
-          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.3 + Math.random() * 0.6)) {
-            fireLaser(ship);
-            ship.lastShotTime = now;
+          if (dist < 2600 && now - ship.lastShotTime >= ship.stats.rate * (1.1 + Math.random() * 0.5)) {
+            // Check if target is in front of the AI ship
+            const isAhead = (ship.vz || 0) >= 0 ? dz > 0 : dz < 0;
+            if (isAhead) {
+              fireLaser(ship);
+              ship.lastShotTime = now;
+            }
           }
         }
       } else {
-        // Patrol / Drift randomly
-        if (Math.random() < 0.02) {
-          ship.angle += (Math.random() - 0.5) * 1.2;
-        }
-        ship.vx += Math.cos(ship.angle) * 0.07;
-        ship.vy += Math.sin(ship.angle) * 0.07;
+        // Patrol/glide towards center Z = 0
+        ship.vx *= 0.92;
+        ship.vy *= 0.92;
+        const aiForward = ship.faction === 'light' ? 1 : -1;
+        const targetVz = aiForward * ship.stats.speed * 2.5;
+        ship.vz = (ship.vz || 0) + (targetVz - (ship.vz || 0)) * 0.06;
+        ship.roll = 0;
       }
 
-      // Physics integration
-      ship.vx *= 0.96;
-      ship.vy *= 0.96;
-      const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      const aiMaxSpeed = ship.stats.speed * 0.65;
-      if (spd > aiMaxSpeed) {
-        ship.vx = (ship.vx / spd) * aiMaxSpeed;
-        ship.vy = (ship.vy / spd) * aiMaxSpeed;
-      }
-
+      // AI Physics integration
       ship.x += ship.vx;
       ship.y += ship.vy;
+      ship.z = (ship.z || 0) + (ship.vz || 0);
 
-      // Clamp AI inside map
-      ship.x = Math.max(60, Math.min(WORLD_SIZE - 60, ship.x));
-      ship.y = Math.max(60, Math.min(WORLD_SIZE - 60, ship.y));
+      // AI boundaries
+      ship.x = Math.max(-2200, Math.min(2200, ship.x));
+      ship.y = Math.max(-1050, Math.min(1050, ship.y));
+
+      // AI recycling when overshooting bases
+      const shipForward = ship.faction === 'light' ? 1 : -1;
+      if (ship.z * shipForward > 3100) {
+        ship.z = -3000 * shipForward;
+        ship.x = (Math.random() - 0.5) * 3000;
+        ship.y = (Math.random() - 0.5) * 1000;
+        ship.vx = 0;
+        ship.vy = 0;
+        ship.vz = shipForward * ship.stats.speed * (2.0 + Math.random() * 2.0);
+        ship.hp = ship.maxHp;
+      }
     });
 
-    // --- 4. Update Lasers ---
+    // --- 5. Update Lasers (3D depth flight) ---
     state.lasers = state.lasers.filter(laser => {
       laser.x += laser.vx;
       laser.y += laser.vy;
-      laser.rangeRemaining -= LASER_SPEED;
+      laser.z = (laser.z || 0) + (laser.vz || 0);
+      laser.rangeRemaining -= Math.abs(laser.vz || 0);
 
       if (laser.rangeRemaining <= 0) return false;
 
-      // Laser collision check with ships
+      // Laser collision with ships in 3D
       let hit = false;
       for (const ship of state.ships) {
-        if (ship.hp <= 0) continue; // Skip dead ships
-        if (ship.faction === laser.faction && !ship.isPlayer) continue; // friendly-fire safety
+        if (ship.hp <= 0) continue;
+        if (ship.faction === laser.faction && !ship.isPlayer) continue;
         if (ship.isPlayer && laser.faction === player.faction) continue;
 
         const dx = ship.x - laser.x;
         const dy = ship.y - laser.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dz = (ship.z || 0) - (laser.z || 0);
+        const distSq = dx*dx + dy*dy + dz*dz;
 
-        if (dist < 34) { // hit radius (larger for scaled-up ship size)
+        // Collision sphere
+        const hitRadius = ship.isPlayer ? 50 : 42;
+        if (distSq < hitRadius * hitRadius) {
           ship.hp = Math.max(0, ship.hp - laser.damage);
           hit = true;
 
-          // Spark particle splash
-          spawnExplosion(laser.x, laser.y, laser.color, 6);
+          // Splash particles
+          spawnExplosion(laser.x, laser.y, laser.z || 0, laser.color, 6);
 
-          // Screen shake on player hit
           if (ship.isPlayer) {
-            screenShake.current = { duration: 15, amplitude: 6 };
+            screenShake.current = { duration: 15, amplitude: 8 };
           }
 
-          // Check fainted ship
           if (ship.hp <= 0) {
-            spawnExplosion(ship.x, ship.y, '#eab308', 35);
-            spawnExplosion(ship.x, ship.y, '#f97316', 25);
+            spawnExplosion(ship.x, ship.y, ship.z || 0, '#eab308', 35);
+            spawnExplosion(ship.x, ship.y, ship.z || 0, '#f97316', 25);
 
-            // Increment deaths
             ship.deaths = (ship.deaths || 0) + 1;
 
-            // Increment kills on the killer ship
             const killer = state.ships.find(s => s.id === laser.ownerId);
             if (killer) {
               killer.kills = (killer.kills || 0) + 1;
@@ -729,71 +768,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             if (ship.isPlayer) {
               setIsDead(true);
             } else {
-              // Respawn AI ship after a delay at its base
               const deadShip = ship;
               setTimeout(() => {
-                if (game.current.playerShip && !isMatchOver) {
+                if (!isMatchOver) {
+                  const aiForward = deadShip.faction === 'light' ? 1 : -1;
                   deadShip.hp = deadShip.maxHp;
-                  deadShip.x = Math.random() * (WORLD_SIZE - 800) + 400;
-                  if (deadShip.faction === 'light') {
-                    deadShip.y = 200 + Math.random() * 500;
-                    deadShip.angle = Math.PI / 2;
-                  } else {
-                    deadShip.y = WORLD_SIZE - 700 + Math.random() * 500;
-                    deadShip.angle = -Math.PI / 2;
-                  }
+                  deadShip.z = -3000 * aiForward; // respawn at faction base
+                  deadShip.x = (Math.random() - 0.5) * 2000;
+                  deadShip.y = (Math.random() - 0.5) * 800;
                   deadShip.vx = 0;
                   deadShip.vy = 0;
+                  deadShip.vz = aiForward * deadShip.stats.speed * (2.0 + Math.random() * 2.0);
                 }
-              }, 5000);
+              }, 4000);
             }
-          }
-          break;
-        }
-      }
-
-      if (hit) return false;
-
-      // Laser collision check with asteroids
-      for (const ast of state.asteroids) {
-        const dx = ast.x - laser.x;
-        const dy = ast.y - laser.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const hitRadius = ast.size * 14;
-
-        if (dist < hitRadius) {
-          ast.hp -= laser.damage;
-          hit = true;
-
-          spawnExplosion(laser.x, laser.y, '#78350f', 5);
-
-          if (ast.hp <= 0) {
-            spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
-            
-            if (ast.size > 1) {
-              const newSize = ast.size - 1;
-              state.asteroids.push(
-                {
-                  id: `ast_${ast.id}_1`,
-                  x: ast.x + (Math.random() - 0.5) * 20,
-                  y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
-                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
-                  size: newSize,
-                  hp: newSize * 15
-                },
-                {
-                  id: `ast_${ast.id}_2`,
-                  x: ast.x + (Math.random() - 0.5) * 20,
-                  y: ast.y + (Math.random() - 0.5) * 20,
-                  vx: ast.vx + (Math.random() - 0.5) * 1.2,
-                  vy: ast.vy + (Math.random() - 0.5) * 1.2,
-                  size: newSize,
-                  hp: newSize * 15
-                }
-              );
-            }
-            state.score += ast.size * 50;
           }
           break;
         }
@@ -802,82 +790,76 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       return !hit;
     });
 
-    // --- 5. Update Asteroids ---
+    // --- 6. Update Asteroids in Z-depth ---
     state.asteroids.forEach(ast => {
       ast.x += ast.vx;
       ast.y += ast.vy;
+      ast.z = (ast.z || 0) + (ast.vz || 0);
 
-      // Bounce off boundaries
-      const buffer = ast.size * 15;
-      if (ast.x < buffer || ast.x > WORLD_SIZE - buffer) ast.vx *= -1;
-      if (ast.y < buffer || ast.y > WORLD_SIZE - buffer) ast.vy *= -1;
+      // If behind camera, recycle ahead relative to flight direction
+      if ((ast.z || 0) * forwardZ < (player.z || 0) * forwardZ - 500) {
+        ast.z = (player.z || 0) + (3200 * forwardZ) + (Math.random() - 0.5) * 1000;
+        ast.x = (Math.random() - 0.5) * 4000;
+        ast.y = (Math.random() - 0.5) * 2000;
+        ast.hp = 40;
+      }
 
       // Ship collision with asteroids
       state.ships.forEach(ship => {
-        if (ship.hp <= 0) return; // Skip dead ships
+        if (ship.hp <= 0) return;
         const dx = ship.x - ast.x;
         const dy = ship.y - ast.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const radius = ast.size * 12 + 26; // larger radius for scaled-up ship size
+        const dz = (ship.z || 0) - (ast.z || 0);
+        const distSq = dx*dx + dy*dy + dz*dz;
 
-        if (dist < radius) {
-          // Bounce ship
-          const pushAngle = Math.atan2(dy, dx);
-          ship.x += Math.cos(pushAngle) * 4;
-          ship.y += Math.sin(pushAngle) * 4;
-          ship.vx += Math.cos(pushAngle) * 1.2;
-          ship.vy += Math.sin(pushAngle) * 1.2;
+        const crashRadius = ast.size * 25 + 40;
+        if (distSq < crashRadius * crashRadius) {
+          // Bounce ship back
+          ship.vx += (ship.x - ast.x) * 0.06;
+          ship.vy += (ship.y - ast.y) * 0.06;
+          ship.vz = (ship.vz || 0) - 2.5 * forwardZ;
 
-          ship.hp = Math.max(0, ship.hp - ast.size * 3);
-          
+          ship.hp = Math.max(0, ship.hp - ast.size * 4);
+
+          if (ship.isPlayer) {
+            screenShake.current = { duration: 12, amplitude: 6 };
+          }
+
           if (ship.hp <= 0) {
             ship.deaths = (ship.deaths || 0) + 1;
-
             if (ship.isPlayer) {
               setIsDead(true);
             } else {
-              // Spawn explosion for AI
-              spawnExplosion(ship.x, ship.y, '#eab308', 35);
-              spawnExplosion(ship.x, ship.y, '#f97316', 25);
-              
-              // respawn timer for AI
+              spawnExplosion(ship.x, ship.y, ship.z || 0, '#eab308', 30);
               const deadShip = ship;
               setTimeout(() => {
-                if (game.current.playerShip && !isMatchOver) {
+                if (!isMatchOver) {
+                  const aiForward = deadShip.faction === 'light' ? 1 : -1;
                   deadShip.hp = deadShip.maxHp;
-                  deadShip.x = Math.random() * (WORLD_SIZE - 800) + 400;
-                  if (deadShip.faction === 'light') {
-                    deadShip.y = 200 + Math.random() * 500;
-                    deadShip.angle = Math.PI / 2;
-                  } else {
-                    deadShip.y = WORLD_SIZE - 700 + Math.random() * 500;
-                    deadShip.angle = -Math.PI / 2;
-                  }
+                  deadShip.z = -3000 * aiForward; // respawn at faction base
+                  deadShip.x = (Math.random() - 0.5) * 2000;
+                  deadShip.y = (Math.random() - 0.5) * 800;
                   deadShip.vx = 0;
                   deadShip.vy = 0;
+                  deadShip.vz = aiForward * deadShip.stats.speed * (2.0 + Math.random() * 2.0);
                 }
-              }, 5000);
+              }, 4000);
             }
-          }
-
-          if (ship.isPlayer) {
-            screenShake.current = { duration: 10, amplitude: 4 };
           }
         }
       });
     });
 
-    state.asteroids = state.asteroids.filter(a => a.hp > 0);
-
-    // --- 6. Update Particles ---
+    // --- 7. Update Particles ---
     state.particles = state.particles.filter(p => {
       p.x += p.vx;
       p.y += p.vy;
+      p.z = (p.z || 0) + (p.vz || 0);
       p.life -= 1;
       return p.life > 0;
     });
 
-    // --- 7. Sync HUD ---
+    // --- 8. Sync HUD ---
     const { lightKills, darkKills } = getFactionScores();
     setHud({
       hp: player.hp,
@@ -887,28 +869,30 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       deaths: player.deaths || 0,
       alliesCount: state.ships.filter(s => s.faction === faction && !s.isPlayer && s.hp > 0).length,
       enemiesCount: state.ships.filter(s => s.faction !== faction && s.hp > 0).length,
-      speed: Math.round(Math.sqrt(player.vx * player.vx + player.vy * player.vy) * 10),
+      speed: Math.abs(Math.round(player.vz || 0)) * 15,
       lightKills,
       darkKills
     });
   };
 
-  // Launch a laser shot
+  // Launch a laser shot in 3D Z-direction
   const fireLaser = (ship: SpaceShip) => {
     const state = game.current;
-    
+    const shipForwardZ = ship.faction === 'light' ? 1 : -1;
+
     // Millennium Falcon has dual turrets!
     if (ship.defId === 'falcon') {
-      const offsetL = ship.angle - Math.PI / 2;
-      const offsetR = ship.angle + Math.PI / 2;
-      
-      const lx1 = ship.x + Math.cos(ship.angle) * 12 + Math.cos(offsetL) * 10;
-      const ly1 = ship.y + Math.sin(ship.angle) * 12 + Math.sin(offsetL) * 10;
-      const lx2 = ship.x + Math.cos(ship.angle) * 12 + Math.cos(offsetR) * 10;
-      const ly2 = ship.y + Math.sin(ship.angle) * 12 + Math.sin(offsetR) * 10;
+      const lx1 = ship.x - 24;
+      const ly1 = ship.y;
+      const lz1 = (ship.z || 0) + 25 * shipForwardZ;
 
-      const vx = Math.cos(ship.angle) * LASER_SPEED;
-      const vy = Math.sin(ship.angle) * LASER_SPEED;
+      const lx2 = ship.x + 24;
+      const ly2 = ship.y;
+      const lz2 = (ship.z || 0) + 25 * shipForwardZ;
+
+      const vz = (ship.vz || 0) + 90 * shipForwardZ; // increased laser speed
+      const vx = ship.vx;
+      const vy = ship.vy;
 
       state.lasers.push(
         {
@@ -917,10 +901,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           faction: ship.faction,
           x: lx1,
           y: ly1,
+          z: lz1,
           vx,
           vy,
+          vz,
           damage: ship.stats.power,
-          rangeRemaining: ship.stats.range,
+          rangeRemaining: ship.stats.range * 4,
           color: ship.color
         },
         {
@@ -929,18 +915,23 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           faction: ship.faction,
           x: lx2,
           y: ly2,
+          z: lz2,
           vx,
           vy,
+          vz,
           damage: ship.stats.power,
-          rangeRemaining: ship.stats.range,
+          rangeRemaining: ship.stats.range * 4,
           color: ship.color
         }
       );
     } else {
-      const lx = ship.x + Math.cos(ship.angle) * 20;
-      const ly = ship.y + Math.sin(ship.angle) * 20;
-      const vx = Math.cos(ship.angle) * LASER_SPEED;
-      const vy = Math.sin(ship.angle) * LASER_SPEED;
+      const lx = ship.x;
+      const ly = ship.y;
+      const lz = (ship.z || 0) + 25 * shipForwardZ;
+      
+      const vz = (ship.vz || 0) + 90 * shipForwardZ; // increased laser speed
+      const vx = ship.vx;
+      const vy = ship.vy;
 
       state.lasers.push({
         id: `las_${Math.random()}`,
@@ -948,16 +939,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         faction: ship.faction,
         x: lx,
         y: ly,
+        z: lz,
         vx,
         vy,
+        vz,
         damage: ship.stats.power,
-        rangeRemaining: ship.stats.range,
+        rangeRemaining: ship.stats.range * 4,
         color: ship.color
       });
     }
   };
 
-  // Render Scene loop
+  // Render Scene loop (3D perspective scaling projection)
   const renderScene = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -980,201 +973,277 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       return;
     }
 
-    const offsetX = canvas.width / 2 - player.x;
-    const offsetY = canvas.height / 2 - player.y;
-
-    // 1. Draw Space Void (Solid retro arcade black)
+    // 1. Draw Space Void (Solid black)
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Draw Nebula clouds
-    nebulas.current.forEach(neb => {
-      const sx = neb.x + offsetX;
-      const sy = neb.y + offsetY;
-      
-      const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, neb.r);
-      grad.addColorStop(0, neb.color);
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(sx, sy, neb.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
+    const forwardDir = faction === 'light' ? 1 : -1;
 
-    // 3. Draw Parallax Starfield (Chunky flashing Galaga colors with twinkling animation)
+    // 3D Projection Helper
+    const project = (x: number, y: number, z: number) => {
+      const relX = x - camera.current.x;
+      const relY = y - camera.current.y;
+      const relZ = (z - camera.current.z) * forwardDir;
+
+      if (relZ <= 10) return null; // Behind camera
+
+      const fov = 450; // Focal length
+      const scale = fov / relZ;
+      const screenX = canvas.width / 2 + relX * scale * forwardDir;
+      const screenY = canvas.height / 2 - relY * scale; // invert Y for screen space
+
+      return { x: screenX, y: screenY, scale };
+    };
+
+    // 2. Draw Stars (twinkling starfield emerging from center)
     starsBackground.current.forEach((star, index) => {
-      const sx = ((star.x - player.x * star.speed) % canvas.width + canvas.width) % canvas.width;
-      const sy = ((star.y - player.y * star.speed) % canvas.height + canvas.height) % canvas.height;
-      
-      // Periodically twinkle: make ~15% of stars dim out or blink
-      const twinklePhase = (Math.floor(Date.now() / 150) + index) % 7;
-      if (twinklePhase === 0) {
-        ctx.fillStyle = '#111827'; // very dim
+      let starZ = star.z;
+      if (forwardDir === 1) {
+        while (starZ < camera.current.z) starZ += 3000;
+        while (starZ > camera.current.z + 3000) starZ -= 3000;
       } else {
-        ctx.fillStyle = star.color;
+        while (starZ > camera.current.z) starZ -= 3000;
+        while (starZ < camera.current.z - 3000) starZ += 3000;
       }
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), star.size, star.size);
+
+      const p = project(star.x, star.y, starZ);
+      if (p) {
+        const twinklePhase = (Math.floor(Date.now() / 150) + index) % 7;
+        if (twinklePhase === 0) {
+          ctx.fillStyle = '#111827'; // very dim
+        } else {
+          ctx.fillStyle = star.color;
+        }
+
+        const size = Math.max(1.5, star.size * p.scale * 0.12);
+        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), size, size);
+      }
     });
 
-    // 4. Draw North Base Area (Light Side Green glowing border)
-    ctx.fillStyle = 'rgba(16, 185, 129, 0.04)';
-    ctx.fillRect(offsetX, offsetY, WORLD_SIZE, 800);
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(offsetX, offsetY + 800);
-    ctx.lineTo(offsetX + WORLD_SIZE, offsetY + 800);
-    ctx.stroke();
-
-    // Hangar markers
-    ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
-    ctx.font = 'bold 16px Courier New';
-    ctx.fillText('=== LIGHT SIDE BASE AREA (NORTH) ===', offsetX + 80, offsetY + 120);
-    ctx.fillText('SECURE REPLENISH ZONE', offsetX + 80, offsetY + 145);
-
-    // 5. Draw South Base Area (Dark Side Red glowing border)
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.04)';
-    ctx.fillRect(offsetX, offsetY + WORLD_SIZE - 800, WORLD_SIZE, 800);
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(offsetX, offsetY + WORLD_SIZE - 800);
-    ctx.lineTo(offsetX + WORLD_SIZE, offsetY + WORLD_SIZE - 800);
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-    ctx.font = 'bold 16px Courier New';
-    ctx.fillText('=== DARK SIDE BASTION AREA (SOUTH) ===', offsetX + 80, offsetY + WORLD_SIZE - 150);
-    ctx.fillText('TACTICAL ASSAULT STATION', offsetX + 80, offsetY + WORLD_SIZE - 125);
-
-    // 6. Draw Scrolling Tactical Radar Grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+    // 3. Draw 3D Tunnel wireframe cage (Tempest/Star Fox feel)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
     ctx.lineWidth = 1;
-    const gridSpacing = 160;
-    const startX = Math.floor(-offsetX / gridSpacing) * gridSpacing;
-    const endX = startX + canvas.width + gridSpacing;
-    const startY = Math.floor(-offsetY / gridSpacing) * gridSpacing;
-    const endY = startY + canvas.height + gridSpacing;
+    const tunnelW = 2000;
+    const tunnelH = 950;
+    const zSpacing = 300;
+    const zStart = Math.floor(camera.current.z / zSpacing) * zSpacing;
 
-    for (let x = startX; x < endX; x += gridSpacing) {
+    for (let i = 0; i < 11; i++) {
+      const z = zStart + i * zSpacing * forwardDir;
+      // Project the 4 corners of the tunnel at Z
+      const c1 = project(-tunnelW, -tunnelH, z);
+      const c2 = project(tunnelW, -tunnelH, z);
+      const c3 = project(tunnelW, tunnelH, z);
+      const c4 = project(-tunnelW, tunnelH, z);
+
+      if (c1 && c2 && c3 && c4) {
+        ctx.beginPath();
+        ctx.moveTo(c1.x, c1.y);
+        ctx.lineTo(c2.x, c2.y);
+        ctx.lineTo(c3.x, c3.y);
+        ctx.lineTo(c4.x, c4.y);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Floor glow for bases
+        const isNearBase = Math.abs(z) > 1800;
+        if (isNearBase) {
+          const isLightBase = z < 0;
+          ctx.fillStyle = isLightBase ? 'rgba(16, 185, 129, 0.006)' : 'rgba(239, 68, 68, 0.006)';
+          ctx.beginPath();
+          ctx.moveTo(c1.x, c1.y);
+          ctx.lineTo(c2.x, c2.y);
+          ctx.lineTo(canvas.width / 2, canvas.height / 2);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
+    // Draw long lines connecting tunnel corners
+    const pFar1 = project(-tunnelW, -tunnelH, camera.current.z + 3200 * forwardDir);
+    const pFar2 = project(tunnelW, -tunnelH, camera.current.z + 3200 * forwardDir);
+    const pFar3 = project(tunnelW, tunnelH, camera.current.z + 3200 * forwardDir);
+    const pFar4 = project(-tunnelW, tunnelH, camera.current.z + 3200 * forwardDir);
+
+    const pNear1 = project(-tunnelW, -tunnelH, camera.current.z + 100 * forwardDir);
+    const pNear2 = project(tunnelW, -tunnelH, camera.current.z + 100 * forwardDir);
+    const pNear3 = project(tunnelW, tunnelH, camera.current.z + 100 * forwardDir);
+    const pNear4 = project(-tunnelW, tunnelH, camera.current.z + 100 * forwardDir);
+
+    if (pFar1 && pNear1) {
       ctx.beginPath();
-      ctx.moveTo(x + offsetX, 0);
-      ctx.lineTo(x + offsetX, canvas.height);
+      ctx.moveTo(pNear1.x, pNear1.y); ctx.lineTo(pFar1.x, pFar1.y);
+      ctx.moveTo(pNear2!.x, pNear2!.y); ctx.lineTo(pFar2!.x, pFar2!.y);
+      ctx.moveTo(pNear3!.x, pNear3!.y); ctx.lineTo(pFar3!.x, pFar3!.y);
+      ctx.moveTo(pNear4!.x, pNear4!.y); ctx.lineTo(pFar4!.x, pFar4!.y);
       ctx.stroke();
     }
-    for (let y = startY; y < endY; y += gridSpacing) {
+
+    // Render Light Side Base Gate (at Z = -3000)
+    const pLightBase = project(0, 0, -3000);
+    if (pLightBase) {
+      const baseScale = pLightBase.scale * 20;
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)'; // Emerald
+      ctx.lineWidth = Math.max(1, pLightBase.scale * 0.2);
       ctx.beginPath();
-      ctx.moveTo(0, y + offsetY);
-      ctx.lineTo(canvas.width, y + offsetY);
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4;
+        const x = pLightBase.x + Math.cos(angle) * baseScale * 12;
+        const y = pLightBase.y + Math.sin(angle) * baseScale * 8;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
       ctx.stroke();
+      
+      if (pLightBase.scale > 0.5) {
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.6)';
+        ctx.font = `${Math.max(6, Math.floor(6 * pLightBase.scale * 0.15))}px "Press Start 2P", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText("LIGHT SIDE HANGAR", pLightBase.x, pLightBase.y - baseScale * 4);
+      }
     }
 
-    // 7. Draw World Boundary Fence
-    ctx.strokeStyle = faction === 'light' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(offsetX, offsetY, WORLD_SIZE, WORLD_SIZE);
+    // Render Dark Side Base Gate (at Z = 3000)
+    const pDarkBase = project(0, 0, 3000);
+    if (pDarkBase) {
+      const baseScale = pDarkBase.scale * 20;
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; // Red
+      ctx.lineWidth = Math.max(1, pDarkBase.scale * 0.2);
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const x = pDarkBase.x + Math.cos(angle) * baseScale * 12;
+        const y = pDarkBase.y + Math.sin(angle) * baseScale * 8;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      
+      if (pDarkBase.scale > 0.5) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+        ctx.font = `${Math.max(6, Math.floor(6 * pDarkBase.scale * 0.15))}px "Press Start 2P", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText("DARK SIDE HANGAR", pDarkBase.x, pDarkBase.y - baseScale * 4);
+      }
+    }
 
-    // 8. Draw Asteroids (Chunky flat pixel-art rocks)
+    // 4. Project and render Asteroids
     game.current.asteroids.forEach(ast => {
-      const sx = ast.x + offsetX;
-      const sy = ast.y + offsetY;
-      const r = ast.size * 12;
+      const p = project(ast.x, ast.y, ast.z || 0);
+      if (p) {
+        const r = ast.size * 10 * p.scale * 0.15;
+        if (r > 1.5) {
+          ctx.fillStyle = '#27272a';
+          ctx.strokeStyle = '#18181b';
+          ctx.lineWidth = Math.max(1, 2 * p.scale * 0.1);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
 
-      ctx.fillStyle = '#27272a';
-      ctx.strokeStyle = '#18181b';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#09090b';
-      ctx.beginPath();
-      ctx.arc(sx - r * 0.35, sy - r * 0.15, r * 0.25, 0, Math.PI * 2);
-      ctx.arc(sx + r * 0.4, sy + r * 0.3, r * 0.18, 0, Math.PI * 2);
-      ctx.fill();
+          // Craters
+          ctx.fillStyle = '#09090b';
+          ctx.beginPath();
+          ctx.arc(p.x - r * 0.35, p.y - r * 0.15, r * 0.25, 0, Math.PI * 2);
+          ctx.arc(p.x + r * 0.4, p.y + r * 0.3, r * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     });
 
-    // 9. Draw Lasers (Chunky arcade strokes)
+    // 5. Project and render Lasers (3D lines)
     game.current.lasers.forEach(laser => {
-      const sx = laser.x + offsetX;
-      const sy = laser.y + offsetY;
+      const length = 100;
+      const p1 = project(laser.x, laser.y, laser.z || 0);
+      const p2 = project(laser.x, laser.y, (laser.z || 0) + length * Math.sign(laser.vz || 1));
 
-      ctx.strokeStyle = laser.color;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(sx - (laser.vx / LASER_SPEED) * 20, sy - (laser.vy / LASER_SPEED) * 20);
-      ctx.stroke();
+      if (p1 && p2) {
+        ctx.strokeStyle = laser.color;
+        ctx.lineWidth = Math.max(1.5, 4.5 * p1.scale * 0.14);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
     });
 
-    // 10. Draw Fleet Ships (Skipping dead ones)
-    game.current.ships.forEach(ship => {
-      if (ship.hp <= 0) return;
-      const sx = ship.x + offsetX;
-      const sy = ship.y + offsetY;
-
-      drawPixelShip(
-        ctx,
-        sx,
-        sy,
-        ship.isPlayer ? 46 : 38, // spacecraft sizes scaled up further for better arcade visibility
-        ship.angle,
-        ship.defId,
-        ship.faction,
-        ship.color,
-        Math.abs(ship.vx) > 0.3 || Math.abs(ship.vy) > 0.3
-      );
-
-      // Draw health indicators
-      const hpPct = ship.hp / ship.maxHp;
-      const barW = 28;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-      ctx.fillRect(sx - barW / 2, sy - 24, barW, 4);
-
-      ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
-      ctx.fillRect(sx - barW / 2, sy - 24, barW * hpPct, 3);
-    });
-
-    // 11. Draw Explosion Particles
+    // 6. Project and render Particles
     game.current.particles.forEach(p => {
-      const sx = p.x + offsetX;
-      const sy = p.y + offsetY;
-      const lifePct = p.life / p.maxLife;
-
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = lifePct;
-      ctx.fillRect(sx - p.size / 2, sy - p.size / 2, p.size, p.size);
+      const proj = project(p.x, p.y, p.z || 0);
+      if (proj) {
+        const lifePct = p.life / p.maxLife;
+        const size = Math.max(1, p.size * proj.scale * 0.12);
+        
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = lifePct;
+        ctx.fillRect(proj.x - size / 2, proj.y - size / 2, size, size);
+      }
     });
     ctx.globalAlpha = 1.0;
 
-    // 12. Draw offscreen indicators
-    game.current.ships.forEach(ship => {
-      if (ship.isPlayer || ship.hp <= 0) return;
-      
-      const dx = ship.x - player.x;
-      const dy = ship.y - player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+    // 7. Project and render Fleet Ships (Painter's Algorithm: Sort by Z depth descending)
+    const renderShips = [...game.current.ships]
+      .filter(s => s.hp > 0)
+      .sort((a, b) => {
+        const depthA = (a.z || 0) * forwardDir;
+        const depthB = (b.z || 0) * forwardDir;
+        return depthB - depthA; // Sort by relative depth descending (further away drawn first)
+      });
 
-      if (dist > canvas.width / 2 && dist < 2200) {
-        const angle = Math.atan2(dy, dx);
-        const margin = 32;
-        const rx = canvas.width / 2 + Math.cos(angle) * (canvas.width / 2 - margin);
-        const ry = canvas.height / 2 + Math.sin(angle) * (canvas.height / 2 - margin);
+    renderShips.forEach(ship => {
+      const p = project(ship.x, ship.y, ship.z || 0);
+      if (p) {
+        const baseSize = ship.isPlayer ? 46 : 38;
+        const projectedSize = baseSize * p.scale * 0.16;
 
-        ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
-        ctx.save();
-        ctx.translate(rx, ry);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(8, 0);
-        ctx.lineTo(-6, -7);
-        ctx.lineTo(-6, 7);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        if (projectedSize > 2) {
+          const isFlyingSameDir = ship.faction === faction;
+          const baseAngle = isFlyingSameDir ? -Math.PI / 2 : Math.PI / 2;
+
+          drawPixelShip(
+            ctx,
+            p.x,
+            p.y,
+            projectedSize,
+            (ship.roll || 0) + baseAngle,
+            ship.defId,
+            ship.faction,
+            ship.color,
+            Math.abs(ship.vx) > 0.3 || Math.abs(ship.vy) > 0.3 || Math.abs(ship.vz || 0) > 2
+          );
+
+          // Draw health bar
+          const hpPct = ship.hp / ship.maxHp;
+          const barW = projectedSize * 0.8;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.fillRect(p.x - barW / 2, p.y - projectedSize * 0.65 - 5, barW, 3.5);
+
+          ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
+          ctx.fillRect(p.x - barW / 2, p.y - projectedSize * 0.65 - 5, barW * hpPct, 2.5);
+
+          // Pilot tags when close
+          if (!ship.isPlayer && p.scale > 2.2) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.font = '5px "Press Start 2P", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(ship.name.split(' ')[0], p.x, p.y - projectedSize * 0.65 - 9);
+          }
+        }
       }
     });
+
+    // 8. Draw Player aiming reticle/crosshair at mouse cursor
+    ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mousePos.current.x, mousePos.current.y, 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = faction === 'light' ? '#38bdf8' : '#ef4444';
+    ctx.fillRect(mousePos.current.x - 1, mousePos.current.y - 1, 3, 3);
 
     ctx.restore();
   };
@@ -1191,15 +1260,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get current ship selection list for respawn screen
   const respawnShips = faction === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
   const selectedRespawnShipDef = [...LIGHT_SHIPS, ...DARK_SHIPS].find(s => s.id === respawnShipId);
 
-  // Leaderboard ranking list
   const rankings = getLeaderboard();
   const topPilot = rankings[0];
 
-  // Determine faction winner: side with most kills AND best K/D ratio wins
   const factionScores = getFactionScores();
   const lightRatio = factionScores.lightDeaths === 0 ? factionScores.lightKills * 999 : factionScores.lightKills / factionScores.lightDeaths;
   const darkRatio = factionScores.darkDeaths === 0 ? factionScores.darkKills * 999 : factionScores.darkKills / factionScores.darkDeaths;
@@ -1383,8 +1449,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               </button>
             </div>
 
-            <div className="text-[9px] text-zinc-600 uppercase tracking-wider text-center mt-2 border-t border-zinc-900 pt-4 w-full">
-              USE <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-850">↑</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-850">↓</kbd> OR MOUSE TO SELECT
+            <div className="text-[9px] text-zinc-650 uppercase tracking-wider text-center mt-2 border-t border-zinc-900 pt-4 w-full">
+              USE <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-855">↑</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-855">↓</kbd> OR MOUSE TO SELECT
             </div>
           </div>
         </div>
