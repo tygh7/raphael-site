@@ -1,0 +1,93 @@
+export type Faction = 'light' | 'dark';
+
+export interface ShipStats {
+  speed: number;        // Max speed (velocity cap)
+  power: number;        // Damage per laser shot
+  rate: number;         // Cooldown between shots in milliseconds
+  range: number;        // Max laser travel distance in pixels
+  shield: number;       // Base maximum health/shield
+}
+
+export interface ShipDef {
+  id: string;
+  name: string;
+  faction: Faction;
+  description: string;
+  stats: ShipStats;
+  color: string; // Faction laser/engine color (e.g. green for Light, red for Dark)
+}
+
+export interface SpaceShip {
+  id: string;
+  defId: string;
+  name: string;
+  faction: Faction;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  angle: number; // in radians
+  hp: number;
+  maxHp: number;
+  lastShotTime: number;
+  isPlayer: boolean;
+  stats: ShipStats;
+  color: string;
+  
+  // Stats
+  kills?: number;
+  deaths?: number;
+
+  // AI targeting
+  targetId?: string;
+  aiState?: 'patrol' | 'chase' | 'avoid';
+  aiDecisionTimer?: number;
+}
+
+export interface Laser {
+  id: string;
+  ownerId: string;
+  faction: Faction;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  damage: number;
+  rangeRemaining: number;
+  color: string;
+}
+
+export interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number; // remaining life frames
+  maxLife: number;
+  color: string;
+  size: number;
+}
+
+export interface Asteroid {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number; // 3 (large), 2 (medium), 1 (small)
+  hp: number;
+}
+
+export interface GameState {
+  playerShip: SpaceShip | null;
+  faction: Faction | null;
+  ships: SpaceShip[];
+  lasers: Laser[];
+  particles: Particle[];
+  asteroids: Asteroid[];
+  worldSize: number; // Big flat map size (e.g. 5000x5000 pixels)
+  score: number;
+  kills: number;
+  deaths: number;
+}
