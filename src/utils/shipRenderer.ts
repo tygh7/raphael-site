@@ -233,6 +233,25 @@ export function drawPixelShip(
   // Disable smoothing inside rendering logic
   ctx.imageSmoothingEnabled = false;
 
+  // 1. Draw a detailed deflector shield ring around the ship
+  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 2. Draw an ambient plasma engine trail glow if the ship is moving
+  if (isMoving) {
+    const engineGlow = ctx.createRadialGradient(-size * 0.45, 0, 1, -size * 0.8, 0, size * 0.45);
+    engineGlow.addColorStop(0, faction === 'light' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.9)');
+    engineGlow.addColorStop(0.3, faction === 'light' ? 'rgba(14, 165, 233, 0.35)' : 'rgba(220, 38, 38, 0.4)');
+    engineGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = engineGlow;
+    ctx.beginPath();
+    ctx.arc(-size * 0.6, 0, size * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cellValue = matrix[r][c];
@@ -244,31 +263,40 @@ export function drawPixelShip(
       switch (cellValue) {
         case 1: // Faction Neon Accent
           ctx.fillStyle = accentColor;
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          // Bevel shadow on bottom/right of the pixel
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+          ctx.fillRect(Math.floor(ox), Math.floor(oy + pixelSize - 1), Math.ceil(pixelSize), 1);
+          ctx.fillRect(Math.floor(ox + pixelSize - 1), Math.floor(oy), 1, Math.ceil(pixelSize));
           break;
-        case 2: // Cockpit Glass
+        case 2: // Cockpit Glass with glint reflection
           ctx.fillStyle = glassColor;
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          // Glint reflection
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize * 0.4), Math.ceil(pixelSize * 0.4));
           break;
-        case 3: // Engine Thruster Flame (flashes if ship is moving)
+        case 3: // Engine Thruster Flame (flashes with white hot core)
           if (isMoving && Math.random() < 0.75) {
             ctx.fillStyle = Math.random() < 0.5 ? '#f97316' : '#eab308'; // Orange or Yellow
-          } else {
-            continue; // skip drawing flame if not moving
+            ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+            // White hot core
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(Math.floor(ox + pixelSize * 0.25), Math.floor(oy + pixelSize * 0.25), Math.ceil(pixelSize * 0.5), Math.ceil(pixelSize * 0.5));
           }
           break;
-        case 4: // Main Hull Armor
+        case 4: // Main Hull Armor with bevel shadow
           ctx.fillStyle = hullColor;
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
+          // Bevel shadow
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+          ctx.fillRect(Math.floor(ox), Math.floor(oy + pixelSize - 1), Math.ceil(pixelSize), 1);
+          ctx.fillRect(Math.floor(ox + pixelSize - 1), Math.floor(oy), 1, Math.ceil(pixelSize));
           break;
         default:
           ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
       }
-
-      // Draw pixel square
-      ctx.fillRect(
-        Math.floor(ox),
-        Math.floor(oy),
-        Math.ceil(pixelSize),
-        Math.ceil(pixelSize)
-      );
     }
   }
 
