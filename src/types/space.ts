@@ -54,6 +54,9 @@ export interface SpaceShip {
   lastBoostTime?: number;
   boostActiveTimer?: number; // active frames remaining for multiplier boost
   lastBombTime?: number;
+  specialType?: 'beam' | 'shield';
+  lastSpecialTime?: number;
+  shieldActiveTimer?: number; // active frames remaining for shield
 }
 
 export interface Laser {
@@ -70,6 +73,7 @@ export interface Laser {
   rangeRemaining: number;
   color: string;
   isBomb?: boolean; // special bomb projectile
+  isSuperBeam?: boolean; // special super beam laser projectile
 }
 
 export interface Particle {
