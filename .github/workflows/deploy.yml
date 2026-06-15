@@ -11,11 +11,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
       - name: Deploy to server
         uses: burnett01/rsync-deployments@7.0.1
         with:
-          switches: -avzr --delete --exclude='.git*' --exclude='.github'
-          path: ./
+          switches: -avzr --delete
+          path: out/
           remote_path: /var/www/raphael/
           remote_host: ${{ secrets.SERVER_HOST }}
           remote_user: raphael
