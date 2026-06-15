@@ -1217,34 +1217,148 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.aiDecisionTimer -= 1;
 
       if (ship.aiDecisionTimer <= 0) {
-        ship.aiDecisionTimer = 20 + Math.floor(Math.random() * 30); // 0.5s
+        ship.aiDecisionTimer = 15 + Math.floor(Math.random() * 20); // ~0.25s to 0.6s tick rate for high responsiveness
 
-        // 1. Scan for nearest target of opposite faction
-        let nearestTarget: SpaceShip | null = null;
-        let minDist = 1200;
+        const now = Date.now();
 
-        state.ships.forEach(t => {
-          if (t.faction !== ship.faction && t.hp > 0) {
-            const dx = t.x - ship.x;
-            const dy = t.y - ship.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) {
-              minDist = dist;
-              nearestTarget = t;
+        // 1. Self-preservation check: escape if very low HP
+        if (ship.hp < ship.maxHp * 0.35) {
+          // Find nearest threat of opposite faction
+          let nearestThreat: SpaceShip | null = null;
+          let threatDist = 900;
+
+          for (const t of state.ships) {
+            if (t.faction !== ship.faction && t.hp > 0) {
+              const dx = t.x - ship.x;
+              const dy = t.y - ship.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < threatDist) {
+                threatDist = dist;
+                nearestThreat = t;
+              }
             }
           }
-        });
 
-        if (nearestTarget) {
-          ship.targetId = (nearestTarget as SpaceShip).id;
-          ship.aiState = 'chase';
+          if (nearestThreat) {
+            ship.aiState = 'escape';
+            ship.targetId = nearestThreat.id;
+          } else {
+            ship.aiState = 'patrol';
+            ship.targetId = undefined;
+          }
         } else {
-          ship.targetId = undefined;
-          ship.aiState = 'patrol';
+          // 2. Teamwork strategy check: check if a nearby ally needs help
+          // Interceptors (Kylo, Vader, Delta-7, Interceptor, TIE N2) are solo hunters (20% support rate), others are cooperative wingmen (75% support rate)
+          const isSoloHunter = ['tie_vader', 'tie_n2', 'delta_7', 'jedi_interceptor', 'tie_silencer'].includes(ship.defId);
+          const supportProbability = isSoloHunter ? 0.2 : 0.75;
+          let foundAllyToSupport = false;
+
+          if (Math.random() < supportProbability) {
+            let distressedAlly: SpaceShip | null = null;
+            let allyDist = 800;
+
+            for (const ally of state.ships) {
+              if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > 0 && ally.hp < ally.maxHp * 0.45) {
+                const dx = ally.x - ship.x;
+                const dy = ally.y - ship.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < allyDist) {
+                  allyDist = dist;
+                  distressedAlly = ally;
+                }
+              }
+            }
+
+            if (distressedAlly) {
+              // Target the enemy that is closest to our ally (who is attacking them)
+              let attackerOfAlly: SpaceShip | null = null;
+              let attackerDist = 800;
+
+              for (const enemy of state.ships) {
+                if (enemy.faction !== ship.faction && enemy.hp > 0) {
+                  const dx = enemy.x - distressedAlly.x;
+                  const dy = enemy.y - distressedAlly.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < attackerDist) {
+                    attackerDist = dist;
+                    attackerOfAlly = enemy;
+                  }
+                }
+              }
+
+              if (attackerOfAlly) {
+                ship.aiState = 'support';
+                ship.targetId = (attackerOfAlly as SpaceShip).id; // Target the enemy chasing our ally
+                foundAllyToSupport = true;
+              }
+            }
+          }
+
+          // 3. Hunt/Chase if not supporting
+          if (!foundAllyToSupport) {
+            let nearestTarget: SpaceShip | null = null;
+            let minDist = 1400; // slightly longer scan range
+
+            for (const t of state.ships) {
+              if (t.faction !== ship.faction && t.hp > 0) {
+                const dx = t.x - ship.x;
+                const dy = t.y - ship.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < minDist) {
+                  minDist = dist;
+                  nearestTarget = t;
+                }
+              }
+            }
+
+            if (nearestTarget) {
+              ship.targetId = (nearestTarget as SpaceShip).id;
+              ship.aiState = 'chase';
+            } else {
+              ship.targetId = undefined;
+              ship.aiState = 'patrol';
+            }
+          }
         }
       }
 
       // AI Execution state
+      const now = Date.now();
+
+      // Dodge incoming lasers if any are extremely close and threatening
+      let threatLaser: any = null;
+      let minLaserDist = 180;
+      for (const laser of state.lasers) {
+        if (laser.faction !== ship.faction) {
+          const ldx = laser.x - ship.x;
+          const ldy = laser.y - ship.y;
+          const ldist = Math.sqrt(ldx * ldx + ldy * ldy);
+          if (ldist < minLaserDist) {
+            // Check if laser is moving towards us (dot product of relative position and velocity is negative)
+            const dot = ldx * laser.vx + ldy * laser.vy;
+            if (dot < 0) {
+              minLaserDist = ldist;
+              threatLaser = laser;
+            }
+          }
+        }
+      }
+
+      if (threatLaser) {
+        // Evade: apply sudden perpendicular acceleration
+        const laserAngle = Math.atan2(threatLaser.vy, threatLaser.vx);
+        const dodgeAngle = laserAngle + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+        ship.vx += Math.cos(dodgeAngle) * 0.25;
+        ship.vy += Math.sin(dodgeAngle) * 0.25;
+
+        // Trigger shield/dash if ready
+        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= 7000) {
+          triggerSpecialMove(ship);
+        } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
+          triggerSpeedBoost(ship);
+        }
+      }
+
       if (ship.aiState === 'chase' && ship.targetId) {
         const target = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
         if (target) {
@@ -1252,71 +1366,234 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const dy = target.y - ship.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          // AI Speed Boost logic (5s reload)
-          const now = Date.now();
+          const targetAngle = Math.atan2(dy, dx);
+          let diff = targetAngle - ship.angle;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+
+          ship.angle += diff * 0.09; // slightly faster turn speed for better agility
+
+          // Speed Boost logic (5s reload)
           const lastBoost = ship.lastBoostTime || 0;
           if (now - lastBoost >= 5000) {
-            if (dist > 450 || ship.hp < ship.maxHp * 0.35) {
+            const targetBoosting = target.boostActiveTimer !== undefined && target.boostActiveTimer > 0;
+            if (dist > 500 || targetBoosting) {
               triggerSpeedBoost(ship);
             }
           }
+
+          // Bomb Special Power Logic (5s reload)
+          const lastBomb = ship.lastBombTime || 0;
+          if (now - lastBomb >= 5000) {
+            if (dist > 180 && dist < 420 && Math.abs(diff) < 0.35) {
+              fireLaser(ship, true); // true = isBomb
+              ship.lastBombTime = now;
+            }
+          }
+
+          // Special Move logic (7s reload)
+          const lastSpecial = ship.lastSpecialTime || 0;
+          if (now - lastSpecial >= 7000) {
+            if (ship.specialType === 'beam' && dist < 650 && Math.abs(diff) < 0.2) {
+              triggerSpecialMove(ship);
+            } else if (ship.specialType === 'shield' && (ship.hp < ship.maxHp * 0.45 || dist < 250)) {
+              triggerSpecialMove(ship);
+            }
+          }
+
+          const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
+          const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
+          const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
+          const accelSpeed = aiMaxSpeed * 0.08 * (aiBoostActive ? 1.8 : 1.0);
+
+          // Fly closer if far, orbit if close to make dogfights dynamic
+          if (dist > 250) {
+            ship.vx += Math.cos(ship.angle) * accelSpeed;
+            ship.vy += Math.sin(ship.angle) * accelSpeed;
+          } else {
+            // Orbit/strafe: add perpendicular thrust to circle around target
+            const strafeAngle = ship.angle + Math.PI / 2 * (ship.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
+            ship.vx += Math.cos(strafeAngle) * accelSpeed * 0.5;
+            ship.vy += Math.sin(strafeAngle) * accelSpeed * 0.5;
+
+            // Maintain slight distance
+            if (dist < 130) {
+              ship.vx -= Math.cos(ship.angle) * accelSpeed * 0.7;
+              ship.vy -= Math.sin(ship.angle) * accelSpeed * 0.7;
+            }
+          }
+
+          if (Math.random() < 0.06) {
+            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 2;
+            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 2;
+          }
+
+          if (dist < ship.stats.range && Math.abs(diff) < 0.4 && now - ship.lastShotTime >= ship.stats.rate * (1.2 + Math.random() * 0.5)) {
+            fireLaser(ship);
+            ship.lastShotTime = now;
+          }
+        } else {
+          ship.aiState = 'patrol';
+        }
+      } else if (ship.aiState === 'escape' && ship.targetId) {
+        const threat = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
+        
+        // Flee towards home base Y position, and away from threat
+        const isLight = ship.faction === 'light';
+        const homeX = WORLD_SIZE / 2;
+        const homeY = isLight ? 400 : 7600;
+
+        let fleeAngle = 0;
+        let threatDist = 99999;
+        let threatDiff = 0;
+
+        if (threat) {
+          const dx = threat.x - ship.x;
+          const dy = threat.y - ship.y;
+          threatDist = Math.sqrt(dx * dx + dy * dy);
+          fleeAngle = Math.atan2(-dy, -dx); // directly away
+
+          // Calculate if the threat is behind us
+          const threatAngle = Math.atan2(dy, dx);
+          threatDiff = threatAngle - ship.angle;
+          while (threatDiff < -Math.PI) threatDiff += Math.PI * 2;
+          while (threatDiff > Math.PI) threatDiff -= Math.PI * 2;
+        } else {
+          ship.aiState = 'patrol';
+          fleeAngle = Math.atan2(homeY - ship.y, homeX - ship.x);
+        }
+
+        const homeAngle = Math.atan2(homeY - ship.y, homeX - ship.x);
+        const targetAngle = threat ? (fleeAngle * 0.6 + homeAngle * 0.4) : homeAngle;
+
+        let diff = targetAngle - ship.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+
+        ship.angle += diff * 0.08;
+
+        // Flee speed: activate boost/dash immediately if threat is close
+        const lastBoost = ship.lastBoostTime || 0;
+        if (now - lastBoost >= 5000 && threatDist < 700) {
+          triggerSpeedBoost(ship);
+        }
+
+        // Flee defense: drop a bomb backwards!
+        const lastBomb = ship.lastBombTime || 0;
+        if (threat && now - lastBomb >= 5000 && threatDist < 350 && Math.abs(Math.abs(threatDiff) - Math.PI) < 0.6) {
+          fireLaser(ship, true); // Drops bomb
+          ship.lastBombTime = now;
+        }
+
+        // Flee shield: activate if low HP and threat is close
+        const lastSpecial = ship.lastSpecialTime || 0;
+        if (ship.specialType === 'shield' && now - lastSpecial >= 7000 && threatDist < 300) {
+          triggerSpecialMove(ship);
+        }
+
+        const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
+        const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
+        const accelSpeed = ship.stats.speed * 0.7 * 0.08 * aiSpeedMultiplier;
+
+        ship.vx += Math.cos(ship.angle) * accelSpeed;
+        ship.vy += Math.sin(ship.angle) * accelSpeed;
+
+        if (threat && threatDist < 500 && Math.random() < 0.04 && now - ship.lastShotTime >= ship.stats.rate * 2) {
+          fireLaser(ship);
+          ship.lastShotTime = now;
+        }
+      } else if (ship.aiState === 'support' && ship.targetId) {
+        const enemy = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
+        
+        if (enemy) {
+          const dx = enemy.x - ship.x;
+          const dy = enemy.y - ship.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
 
           const targetAngle = Math.atan2(dy, dx);
           let diff = targetAngle - ship.angle;
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
 
-          // AI Special Move logic (7s reload)
-          const lastSpecial = ship.lastSpecialTime || 0;
-          if (now - lastSpecial >= 7000) {
-            if (ship.specialType === 'beam' && dist < 500 && Math.abs(diff) < 0.3) {
-              triggerSpecialMove(ship);
-            } else if (ship.specialType === 'shield' && (ship.hp < ship.maxHp * 0.5 || dist < 300)) {
-              triggerSpecialMove(ship);
-            }
-          }
-
           ship.angle += diff * 0.08;
 
           const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
           const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
-          const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
-          const accelSpeed = aiMaxSpeed * 0.08 * (aiBoostActive ? 1.8 : 1.0);
-          if (dist > 300) {
-            ship.vx += Math.cos(ship.angle) * accelSpeed;
-            ship.vy += Math.sin(ship.angle) * accelSpeed;
-          } else if (dist < 150) {
-            ship.vx -= Math.cos(ship.angle) * accelSpeed;
-            ship.vy -= Math.sin(ship.angle) * accelSpeed;
+          const accelSpeed = ship.stats.speed * 0.65 * 0.08 * aiSpeedMultiplier;
+          
+          ship.vx += Math.cos(ship.angle) * accelSpeed;
+          ship.vy += Math.sin(ship.angle) * accelSpeed;
+
+          // Boost to intercept
+          const lastBoost = ship.lastBoostTime || 0;
+          if (now - lastBoost >= 5000 && dist > 550) {
+            triggerSpeedBoost(ship);
           }
 
-          if (Math.random() < 0.05) {
-            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
-            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 1.5;
+          // Special moves to save ally
+          const lastBomb = ship.lastBombTime || 0;
+          if (now - lastBomb >= 5000 && dist > 200 && dist < 450 && Math.abs(diff) < 0.4) {
+            fireLaser(ship, true); // Bomb
+            ship.lastBombTime = now;
           }
 
-          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.3 + Math.random() * 0.6)) {
+          const lastSpecial = ship.lastSpecialTime || 0;
+          if (now - lastSpecial >= 7000) {
+            if (ship.specialType === 'beam' && dist < 600 && Math.abs(diff) < 0.2) {
+              triggerSpecialMove(ship);
+            } else if (ship.specialType === 'shield' && dist < 200) {
+              triggerSpecialMove(ship);
+            }
+          }
+
+          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.1 + Math.random() * 0.5)) {
             fireLaser(ship);
             ship.lastShotTime = now;
           }
+        } else {
+          ship.aiState = 'patrol';
         }
       } else {
-        // Patrol towards the center neutral clashing zone
-        const targetX = WORLD_SIZE / 2 + (ship.id.charCodeAt(0) % 10 - 5) * 200; // spread horizontally
-        const targetY = WORLD_SIZE / 2;
+        // Patrol / Group up
+        let formationLeader: SpaceShip | null = null;
+        let leaderDist = 500;
+
+        for (const ally of state.ships) {
+          if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > 0 && ally.aiState === 'patrol') {
+            const dx = ally.x - ship.x;
+            const dy = ally.y - ship.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < leaderDist && ally.id < ship.id) {
+              leaderDist = dist;
+              formationLeader = ally;
+            }
+          }
+        }
+
+        let targetX = WORLD_SIZE / 2;
+        let targetY = WORLD_SIZE / 2;
+
+        if (formationLeader) {
+          const offsetDist = 120;
+          const offsetAngle = (formationLeader as SpaceShip).angle + Math.PI + (ship.id.charCodeAt(0) % 2 === 0 ? 0.6 : -0.6);
+          targetX = (formationLeader as SpaceShip).x + Math.cos(offsetAngle) * offsetDist;
+          targetY = (formationLeader as SpaceShip).y + Math.sin(offsetAngle) * offsetDist;
+        } else {
+          targetX = WORLD_SIZE / 2 + (ship.id.charCodeAt(0) % 8 - 4) * 250;
+        }
+
         const dx = targetX - ship.x;
         const dy = targetY - ship.y;
         const targetAngle = Math.atan2(dy, dx);
 
-        // Turn towards the center
         let diff = targetAngle - ship.angle;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
         ship.angle += diff * 0.05;
 
-        // Accelerate in facing direction
-        ship.vx += Math.cos(ship.angle) * 0.08;
-        ship.vy += Math.sin(ship.angle) * 0.08;
+        const cruiseSpeed = ship.stats.speed * 0.45;
+        ship.vx += Math.cos(ship.angle) * cruiseSpeed * 0.08;
+        ship.vy += Math.sin(ship.angle) * cruiseSpeed * 0.08;
       }
 
       // Physics integration
