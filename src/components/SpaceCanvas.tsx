@@ -60,6 +60,15 @@ const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
   return 'shield'; // solar_sailer, tie_fighter, tie_silencer
 };
 
+const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
+  // Light side: x_wing, delta_7 -> dash; falcon, jedi_interceptor -> multiplier
+  if (defId === 'x_wing' || defId === 'delta_7') return 'dash';
+  if (defId === 'falcon' || defId === 'jedi_interceptor') return 'multiplier';
+  // Dark side: tie_fighter, tie_silencer -> dash; tie_vader, tie_n2, solar_sailer -> multiplier
+  if (defId === 'tie_fighter' || defId === 'tie_silencer') return 'dash';
+  return 'multiplier';
+};
+
 export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   faction,
   selectedShipId,
@@ -296,7 +305,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       kills: 0,
       deaths: 0,
       lastHitTime: 0,
-      boostType: Math.random() < 0.5 ? 'dash' : 'multiplier',
+      boostType: getBoostTypeForShip(def.id),
       lastBoostTime: 0,
       boostActiveTimer: 0,
       lastBombTime: 0,
@@ -358,7 +367,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       kills: 0,
       deaths: 0,
       lastHitTime: 0,
-      boostType: Math.random() < 0.5 ? 'dash' : 'multiplier',
+      boostType: getBoostTypeForShip(selectedShipId),
       lastBoostTime: 0,
       boostActiveTimer: 0,
       lastBombTime: 0,
@@ -618,7 +627,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.vy = 0;
       state.playerShip.angle = faction === 'light' ? Math.PI / 2 : -Math.PI / 2;
       state.playerShip.lastHitTime = 0;
-      state.playerShip.boostType = Math.random() < 0.5 ? 'dash' : 'multiplier';
+      state.playerShip.boostType = getBoostTypeForShip(respawnShipId);
       state.playerShip.lastBoostTime = 0;
       state.playerShip.boostActiveTimer = 0;
       state.playerShip.lastBombTime = 0;
@@ -2627,18 +2636,40 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 </div>
               </div>
 
-              {/* Special Ability Badge */}
-              <div className="border-t border-zinc-900 pt-3 flex justify-between items-center bg-zinc-900/20 p-2 rounded-xl border border-zinc-900/40">
-                <span className="text-zinc-500 font-bold uppercase text-[8px] tracking-wider">Special Ability:</span>
-                {getSpecialTypeForShip(selectedRespawnShipDef.id) === 'beam' ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border border-cyan-500/30 bg-cyan-950/30 text-cyan-400 animate-pulse">
-                    ⚡ Super Piercing Beam (1000 DMG)
+              {/* Abilities details */}
+              <div className="border-t border-zinc-900 pt-3 flex flex-col gap-2">
+                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
+                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Dash / Boost (R/R1):</span>
+                  {getBoostTypeForShip(selectedRespawnShipDef.id) === 'dash' ? (
+                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-purple-500/20 bg-purple-950/20 text-purple-400">
+                      🚀 Dagger Dash (320px Jump)
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-amber-500/20 bg-amber-950/20 text-amber-400">
+                      🔥 Overdrive (+200% / 6s)
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
+                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Bomb (E/L2):</span>
+                  <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-violet-500/20 bg-violet-950/20 text-violet-400">
+                    💣 Space Bomb (Wide Radius)
                   </span>
-                ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase border border-blue-500/30 bg-blue-950/30 text-blue-400 animate-pulse">
-                    🛡️ Deflector Shield (5s Reflect)
-                  </span>
-                )}
+                </div>
+
+                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
+                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Shield / Laser Beam (W/R2):</span>
+                  {getSpecialTypeForShip(selectedRespawnShipDef.id) === 'beam' ? (
+                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-cyan-500/20 bg-cyan-950/20 text-cyan-400 animate-pulse">
+                      ⚡ Super Beam (1000 DMG)
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-blue-500/20 bg-blue-950/20 text-blue-400 animate-pulse">
+                      🛡️ Shield (5s Reflect)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}

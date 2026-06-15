@@ -11,6 +11,15 @@ const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
   return 'shield';
 };
 
+const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
+  // Light side: x_wing, delta_7 -> dash; falcon, jedi_interceptor -> multiplier
+  if (defId === 'x_wing' || defId === 'delta_7') return 'dash';
+  if (defId === 'falcon' || defId === 'jedi_interceptor') return 'multiplier';
+  // Dark side: tie_fighter, tie_silencer -> dash; tie_vader, tie_n2, solar_sailer -> multiplier
+  if (defId === 'tie_fighter' || defId === 'tie_silencer') return 'dash';
+  return 'multiplier';
+};
+
 interface FactionSelectProps {
   onLaunch: (faction: Faction, shipId: string) => void;
 }
@@ -301,23 +310,54 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
             </div>
 
             {/* Special Power Info */}
-            <div className="border-t border-zinc-850 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
-              <span className="text-zinc-500 font-bold uppercase tracking-wider">Special Ability (W / R2)</span>
-              {getSpecialTypeForShip(currentShip.id) === 'beam' ? (
-                <div className="flex flex-col gap-1 border border-cyan-950/60 bg-cyan-950/20 p-2.5 rounded-xl text-cyan-400">
-                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">⚡ Super Piercing Beam</span>
+            <div className="border-t border-zinc-850 pt-3 flex flex-col gap-2.5 text-[9px] font-mono">
+              <div className="flex flex-col gap-1">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">Dash / Boost (R / R1)</span>
+                {getBoostTypeForShip(currentShip.id) === 'dash' ? (
+                  <div className="flex flex-col gap-0.5 border border-purple-950/60 bg-purple-950/10 p-2 rounded-xl text-purple-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🚀 Dagger Dash</span>
+                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                      Triggers a sudden 320px micro-jump teleport dash in the direction of travel to evade enemy fire. Cooldown: 5s.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5 border border-amber-950/60 bg-amber-950/10 p-2 rounded-xl text-amber-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🔥 Overdrive Boost</span>
+                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                      Increases engines speed output by +200% for 6 seconds, leaving an energy trail behind. Cooldown: 5s.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">Bomb (E / L2)</span>
+                <div className="flex flex-col gap-0.5 border border-violet-950/60 bg-violet-950/10 p-2 rounded-xl text-violet-400">
+                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">💣 Space Bomb</span>
                   <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                    Fires a massive high-energy beam slicing through all ships for 1,000 damage.
+                    Fires a massive gravity bomb that detonates in a wide area (350px radius), clearing enemy fighters and asteroids. Cooldown: 5s.
                   </span>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-1 border border-blue-950/60 bg-blue-950/20 p-2.5 rounded-xl text-blue-400">
-                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🛡️ Deflector Shield</span>
-                  <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                    Creates a reflective bubble for 5 seconds that bounces enemy lasers back.
-                  </span>
-                </div>
-              )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">Shield / Laser Beam (W / R2)</span>
+                {getSpecialTypeForShip(currentShip.id) === 'beam' ? (
+                  <div className="flex flex-col gap-0.5 border border-cyan-950/60 bg-cyan-950/10 p-2 rounded-xl text-cyan-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">⚡ Super Piercing Beam</span>
+                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                      Fires a colossal piercing energy beam across the entire map, dealing 1,000 damage. Cooldown: 7s.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5 border border-blue-950/60 bg-blue-950/10 p-2 rounded-xl text-blue-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🛡️ Deflector Shield</span>
+                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
+                      Activates a reflective energy bubble for 5 seconds that bounces enemy lasers back. Cooldown: 7s.
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Launch Button */}
