@@ -52,6 +52,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   onExit
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const minimapRef = useRef<HTMLCanvasElement | null>(null);
 
   // Input states
   const keysPressed = useRef<Record<string, boolean>>({});
@@ -313,7 +314,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       asteroids.push({
         id: `ast_${i}`,
         x: Math.random() * WORLD_SIZE,
-        y: Math.random() * (WORLD_SIZE - 1800) + 900, // spawn mostly in the middle neutral zone
+        y: Math.random() * (WORLD_SIZE - 1800) + 900,
         vx: (Math.random() - 0.5) * 0.7,
         vy: (Math.random() - 0.5) * 0.7,
         size: Math.floor(Math.random() * 3) + 1,
@@ -415,6 +416,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const gameTick = () => {
       updateGamePhysics();
       renderScene();
+      renderMinimap();
       animationFrameId = requestAnimationFrame(gameTick);
     };
 
@@ -745,7 +747,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dy = ship.y - laser.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 34) { // hit radius (larger for scaled-up ship size)
+        if (dist < 40) { // hit radius (larger for scaled-up ship size)
           ship.hp = Math.max(0, ship.hp - laser.damage);
           hit = true;
 
@@ -866,7 +868,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dx = ship.x - ast.x;
         const dy = ship.y - ast.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const radius = ast.size * 12 + 26; // larger radius for scaled-up ship size
+        const radius = ast.size * 12 + 32; // larger radius for scaled-up ship size
 
         if (dist < radius) {
           // Bounce ship
@@ -1003,6 +1005,122 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         color: ship.color
       });
     }
+  };
+
+  // Render Minimap
+  const renderMinimap = () => {
+    const canvas = minimapRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+
+    // Clear minimap
+    ctx.fillStyle = '#020205';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+
+    // If Light faction: rotate the minimap 180 degrees so their base (North) is at the bottom.
+    if (faction === 'light') {
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+    }
+
+    const state = game.current;
+    const player = state.playerShip;
+    if (!player) {
+      ctx.restore();
+      return;
+    }
+
+    const scale = canvas.width / WORLD_SIZE;
+
+    // Draw grid lines inside minimap
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 0.5;
+    const divisions = 4;
+    const step = canvas.width / divisions;
+    for (let i = 1; i < divisions; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * step, 0);
+      ctx.lineTo(i * step, canvas.height);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i * step);
+      ctx.lineTo(canvas.width, i * step);
+      ctx.stroke();
+    }
+
+    // Draw base zones
+    // Light base (North: Y = 0 to 800)
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.06)';
+    ctx.fillRect(0, 0, canvas.width, 800 * scale);
+    // Dark base (South: Y = WORLD_SIZE - 800 to WORLD_SIZE)
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.06)';
+    ctx.fillRect(0, (WORLD_SIZE - 800) * scale, canvas.width, 800 * scale);
+
+    // Draw Asteroids
+    ctx.fillStyle = '#52525b';
+    state.asteroids.forEach(ast => {
+      const mx = ast.x * scale;
+      const my = ast.y * scale;
+      const r = Math.max(1, ast.size * 1.0);
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw Ships
+    state.ships.forEach(ship => {
+      if (ship.hp <= 0) return;
+
+      const mx = ship.x * scale;
+      const my = ship.y * scale;
+
+      if (ship.isPlayer) {
+        // Player: Blinking yellow/white dot
+        const flash = Math.floor(Date.now() / 250) % 2 === 0;
+        ctx.fillStyle = flash ? '#ffffff' : '#eab308';
+        ctx.beginPath();
+        ctx.arc(mx, my, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crosshair ring
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.arc(mx, my, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        // AI Ships: Light is Blue, Dark is Red ("red and blue lights" as requested)
+        ctx.fillStyle = ship.faction === 'light' ? '#38bdf8' : '#ef4444';
+        ctx.beginPath();
+        ctx.arc(mx, my, 2.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // Draw screen viewport bounds
+    const mainCanvas = canvasRef.current;
+    if (mainCanvas) {
+      const viewW = mainCanvas.width;
+      const viewH = mainCanvas.height;
+
+      // Centered on player.x, player.y
+      const rx = (player.x - viewW / 2) * scale;
+      const ry = (player.y - viewH / 2) * scale;
+      const rw = viewW * scale;
+      const rh = viewH * scale;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rx, ry, rw, rh);
+    }
+
+    ctx.restore();
   };
 
   // Render Scene loop
@@ -1178,7 +1296,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx,
         sx,
         sy,
-        ship.isPlayer ? 46 : 38, // spacecraft sizes scaled up further for better arcade visibility
+        ship.isPlayer ? 56 : 48, // spacecraft sizes scaled up further for better arcade visibility and rich detail
         ship.angle,
         ship.defId,
         ship.faction,
@@ -1188,12 +1306,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       // Draw health indicators
       const hpPct = ship.hp / ship.maxHp;
-      const barW = 28;
+      const barW = ship.isPlayer ? 36 : 28;
       ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-      ctx.fillRect(sx - barW / 2, sy - 24, barW, 4);
+      ctx.fillRect(sx - barW / 2, sy - (ship.isPlayer ? 32 : 28), barW, 4);
 
       ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
-      ctx.fillRect(sx - barW / 2, sy - 24, barW * hpPct, 3);
+      ctx.fillRect(sx - barW / 2, sy - (ship.isPlayer ? 32 : 28), barW * hpPct, 3);
     });
 
     // 11. Draw Explosion Particles
@@ -1341,13 +1459,25 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         </div>
       </div>
 
-      {/* Canvas viewport */}
       <canvas
         ref={canvasRef}
         width={canvasDimensions.width}
         height={canvasDimensions.height}
         className="w-full h-full cursor-crosshair block bg-black"
       />
+
+      {/* Tactical Minimap HUD (Bottom-Left above Speed Indicator) */}
+      <div className="absolute bottom-[80px] left-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[160px] pointer-events-none">
+        <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-0.5 text-center">
+          TACTICAL MAP
+        </span>
+        <canvas
+          ref={minimapRef}
+          width={136}
+          height={136}
+          className="bg-[#020205] border border-zinc-900 rounded-md block"
+        />
+      </div>
 
       {/* Live Leaderboard Overlay (Galaga Retro style top-right kills/deaths pilot list) */}
       <div className="absolute top-[80px] right-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[240px] pointer-events-none">
