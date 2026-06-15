@@ -381,16 +381,36 @@ export function drawPixelShip(
   ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 2. Draw an ambient plasma engine trail glow if the ship is moving
-  if (isMoving) {
-    const engineGlow = ctx.createRadialGradient(-size * 0.45, 0, 1, -size * 0.8, 0, size * 0.45);
-    engineGlow.addColorStop(0, faction === 'light' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.9)');
-    engineGlow.addColorStop(0.3, faction === 'light' ? 'rgba(14, 165, 233, 0.35)' : 'rgba(220, 38, 38, 0.4)');
-    engineGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = engineGlow;
-    ctx.beginPath();
-    ctx.arc(-size * 0.6, 0, size * 0.45, 0, Math.PI * 2);
-    ctx.fill();
+  // Find cockpit and engine pixels beforehand for advanced localized rendering
+  const enginePixels: { r: number; c: number }[] = [];
+  const cockpitPixels: { r: number; c: number }[] = [];
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const val = matrix[r][c];
+      if (val === 3) enginePixels.push({ r, c });
+      if (val === 2) cockpitPixels.push({ r, c });
+    }
+  }
+
+  // 2. Draw localized engine plasma trails for each engine port (pixels value 3)
+  if (isMoving && enginePixels.length > 0) {
+    enginePixels.forEach(ep => {
+      const ox = (ep.c - xCenter) * pixelSize;
+      const oy = (ep.r - yCenter) * pixelSize;
+      
+      // Localized flame trail pointing backwards (leftwards relative to right-facing ship)
+      const trailLength = size * (0.35 + Math.sin(Date.now() * 0.025 + ep.r * 1.5) * 0.08);
+      const thrusterGlow = ctx.createRadialGradient(ox, oy, 1, ox - trailLength, oy, size * 0.2);
+      thrusterGlow.addColorStop(0, faction === 'light' ? 'rgba(56, 189, 248, 0.95)' : 'rgba(239, 68, 68, 0.98)');
+      thrusterGlow.addColorStop(0.25, faction === 'light' ? 'rgba(14, 165, 233, 0.55)' : 'rgba(220, 38, 38, 0.6)');
+      thrusterGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      ctx.fillStyle = thrusterGlow;
+      ctx.beginPath();
+      ctx.arc(ox - trailLength * 0.5, oy, size * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }
 
   // 3. Draw a global 3D depth drop-shadow cast behind the ship (making it pop off the canvas)
@@ -406,7 +426,7 @@ export function drawPixelShip(
     }
   }
 
-  // 4. Draw ship pixels with local volumetric shading
+  // 4. Draw ship pixels with local volumetric shading & greeble textures
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cellValue = matrix[r][c];
@@ -421,12 +441,16 @@ export function drawPixelShip(
       const isLeftEdge = c > 0 && matrix[r][c - 1] === 0;
       const isRightEdge = c < cols - 1 && matrix[r][c + 1] === 0;
 
+      // Deterministic greeble shading factor for complex mechanical detailing
+      const hash = Math.abs(Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1;
+      const greebleShade = (hash - 0.5) * 0.16; // luminosity variation of +/- 8%
+
       switch (cellValue) {
         case 1: // Faction Neon Accent
           ctx.fillStyle = accentColor;
           ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
           
-          // Apply 3D volumetric shading
+          // Apply 3D volumetric shading or mechanical greeble details
           if (isTopEdge || isLeftEdge) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; // bright highlight
             ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
@@ -434,13 +458,12 @@ export function drawPixelShip(
             ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'; // dark edge shadow
             ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
           } else {
-            // Ambient vertical gradient
-            const shadeVal = (r / rows) * 0.25 - 0.08;
-            if (shadeVal > 0) {
-              ctx.fillStyle = `rgba(0, 0, 0, ${shadeVal})`;
+            // Internal greeble detailing
+            if (greebleShade > 0) {
+              ctx.fillStyle = `rgba(0, 0, 0, ${greebleShade})`;
               ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-            } else if (shadeVal < 0) {
-              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(shadeVal)})`;
+            } else {
+              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(greebleShade)})`;
               ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
             }
           }
@@ -457,10 +480,11 @@ export function drawPixelShip(
           ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
           ctx.fillRect(Math.floor(ox + pixelSize * 0.3), Math.floor(oy + pixelSize * 0.3), Math.ceil(pixelSize * 0.45), Math.ceil(pixelSize * 0.45));
           break;
-        case 3: // Engine Thruster Flame (flashes with white hot core)
-          if (isMoving && Math.random() < 0.85) {
-            // Animated outer flame
-            ctx.fillStyle = Math.random() < 0.4 ? '#ff4500' : (Math.random() < 0.7 ? '#ff8c00' : '#ffd700'); 
+        case 3: // Engine Thruster Flame (oscillates organically)
+          if (isMoving) {
+            // Pulse width based on time
+            const timePulse = Math.sin(Date.now() * 0.02 + r * 0.7) * 0.5 + 0.5;
+            ctx.fillStyle = timePulse < 0.35 ? '#ff4500' : (timePulse < 0.75 ? '#ff8c00' : '#ffd700'); 
             ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
             
             // White hot core
@@ -480,13 +504,12 @@ export function drawPixelShip(
             ctx.fillStyle = 'rgba(0, 0, 0, 0.32)'; // dark edge shadow
             ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
           } else {
-            // Ambient vertical gradient
-            const shadeVal = (r / rows) * 0.24 - 0.08;
-            if (shadeVal > 0) {
-              ctx.fillStyle = `rgba(0, 0, 0, ${shadeVal})`;
+            // Internal greeble paneling
+            if (greebleShade > 0) {
+              ctx.fillStyle = `rgba(0, 0, 0, ${greebleShade * 0.8})`;
               ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
-            } else if (shadeVal < 0) {
-              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(shadeVal)})`;
+            } else {
+              ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(greebleShade) * 0.8})`;
               ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
             }
           }
@@ -496,6 +519,28 @@ export function drawPixelShip(
           ctx.fillRect(Math.floor(ox), Math.floor(oy), Math.ceil(pixelSize), Math.ceil(pixelSize));
       }
     }
+  }
+
+  // 5. Draw a glowing neon bloom overlay centered on the cockpit
+  if (cockpitPixels.length > 0) {
+    let sumX = 0, sumY = 0;
+    cockpitPixels.forEach(p => {
+      sumX += (p.c - xCenter) * pixelSize + pixelSize / 2;
+      sumY += (p.r - yCenter) * pixelSize + pixelSize / 2;
+    });
+    const avgX = sumX / cockpitPixels.length;
+    const avgY = sumY / cockpitPixels.length;
+
+    const factionGlowColor = faction === 'light' ? 'rgba(56, 189, 248, 0.22)' : 'rgba(239, 68, 68, 0.26)';
+    const cockpitGlow = ctx.createRadialGradient(avgX, avgY, 1, avgX, avgY, size * 0.28);
+    cockpitGlow.addColorStop(0, factionGlowColor);
+    cockpitGlow.addColorStop(0.4, factionGlowColor.replace(/[\d.]+\)$/, '0.08)'));
+    cockpitGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    
+    ctx.fillStyle = cockpitGlow;
+    ctx.beginPath();
+    ctx.arc(avgX, avgY, size * 0.28, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   ctx.restore();
