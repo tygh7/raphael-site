@@ -51,7 +51,7 @@ export const SpaceRules: React.FC = () => {
           <ul className="space-y-3 list-none pl-0">
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Bases & Center:</span>
-              <p>Light spawns at North Base (-6000 Z) and Dark spawns at South Base (6000 Z). Both fly forward to clash in the center.</p>
+              <p>Light spawns at North Base (North area, ~500 Y) and Dark spawns at South Base (South area, ~7500 Y). Both fly to clash in the center.</p>
             </li>
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Hyperspace Warps:</span>
