@@ -983,8 +983,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const offsetX = canvas.width / 2 - player.x;
     const offsetY = canvas.height / 2 - player.y;
 
-    // 1. Draw Space Void (Dark background)
-    ctx.fillStyle = '#030307';
+    // 1. Draw Space Void (Solid retro arcade black)
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 2. Draw Nebula clouds
@@ -994,19 +994,25 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       
       const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, neb.r);
       grad.addColorStop(0, neb.color);
-      grad.addColorStop(1, 'rgba(3, 3, 7, 0)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(sx, sy, neb.r, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // 3. Draw Parallax Starfield (Chunky flashing Galaga colors)
-    starsBackground.current.forEach(star => {
+    // 3. Draw Parallax Starfield (Chunky flashing Galaga colors with twinkling animation)
+    starsBackground.current.forEach((star, index) => {
       const sx = ((star.x - player.x * star.speed) % canvas.width + canvas.width) % canvas.width;
       const sy = ((star.y - player.y * star.speed) % canvas.height + canvas.height) % canvas.height;
       
-      ctx.fillStyle = star.color;
+      // Periodically twinkle: make ~15% of stars dim out or blink
+      const twinklePhase = (Math.floor(Date.now() / 150) + index) % 7;
+      if (twinklePhase === 0) {
+        ctx.fillStyle = '#111827'; // very dim
+      } else {
+        ctx.fillStyle = star.color;
+      }
       ctx.fillRect(Math.floor(sx), Math.floor(sy), star.size, star.size);
     });
 
@@ -1208,22 +1214,31 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   return (
     <div className="fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-[#020205] flex flex-col select-none pixel-font crt-effect">
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         .crt-effect::after {
           content: " ";
           display: block;
           position: absolute;
           top: 0; left: 0; bottom: 0; right: 0;
-          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.45) 50%);
           background-size: 100% 3px;
           z-index: 20;
           pointer-events: none;
-          opacity: 0.4;
+          opacity: 0.45;
         }
         .crt-glow {
-          text-shadow: 0 0 6px rgba(255, 255, 255, 0.4), 0 0 12px currentColor;
+          text-shadow: 0 0 5px rgba(255, 255, 255, 0.35), 0 0 10px currentColor;
         }
         .pixel-font {
-          font-family: 'Courier New', Courier, monospace;
+          font-family: 'Press Start 2P', monospace;
+          font-size: 9px;
+          line-height: 1.6;
+        }
+        .pixel-font button, .pixel-font kbd, .pixel-font span, .pixel-font div, .pixel-font table {
+          font-family: 'Press Start 2P', monospace;
+        }
+        ::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
 
