@@ -51,7 +51,7 @@ export const SpaceRules: React.FC = () => {
           <ul className="space-y-3 list-none pl-0">
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Bases & Center:</span>
-              <p>Light spawns at North Base (-3000 Z) and Dark spawns at South Base (3000 Z). Both fly forward to clash in the center.</p>
+              <p>Light spawns at North Base (-6000 Z) and Dark spawns at South Base (6000 Z). Both fly forward to clash in the center.</p>
             </li>
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Hyperspace Warps:</span>
@@ -59,7 +59,7 @@ export const SpaceRules: React.FC = () => {
             </li>
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Allies & Defend:</span>
-              <p>80 fighters (40v40) engage in combat. Your wingmen will actively intercept enemies pursuing you!</p>
+              <p>60 fighters (30v30) engage in combat. Your wingmen will actively intercept enemies pursuing you!</p>
             </li>
             <li className="flex gap-2">
               <span className="text-rose-500 font-bold font-mono">Asteroids:</span>
