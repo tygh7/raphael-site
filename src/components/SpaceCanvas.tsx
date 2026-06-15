@@ -209,11 +209,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const x = (Math.random() - 0.5) * 3000;
     const y = (Math.random() - 0.5) * 1000;
     
-    // Light spawns near -3000, Dark spawns near 3000
+    // Light spawns near -5900, Dark spawns near 5900
     const factionZDirection = fact === 'light' ? 1 : -1;
-    const baseZ = -3000 * factionZDirection;
+    const baseZ = -5900 * factionZDirection;
     // Spread them out along the flight path
-    const z = baseZ + factionZDirection * (Math.random() * 1800);
+    const z = baseZ + factionZDirection * (Math.random() * 3800);
 
     return {
       id: `ai_${fact}_${index}_${Math.random().toString(36).substr(2, 5)}`,
@@ -225,7 +225,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       z,
       vx: (Math.random() - 0.5) * 2,
       vy: (Math.random() - 0.5) * 2,
-      vz: factionZDirection * def.stats.speed * (2.0 + Math.random() * 2.0), // increased speed
+      vz: factionZDirection * def.stats.speed * (1.5 + Math.random() * 1.5),
       angle: 0,
       roll: 0,
       pitch: 0,
@@ -279,7 +279,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       faction: faction,
       x: 0,
       y: 0,
-      z: -2900 * pForwardZ,
+      z: -5900 * pForwardZ,
       vx: 0,
       vy: 0,
       vz: pForwardZ * playerDef.stats.speed * 4.5,
@@ -297,7 +297,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       deaths: 0
     };
 
-    camera.current = { x: 0, y: 40, z: -2900 * pForwardZ - 260 * pForwardZ };
+    camera.current = { x: 0, y: 40, z: -5900 * pForwardZ - 260 * pForwardZ };
 
     game.current.playerShip = player;
     game.current.ships = [player];
@@ -318,7 +318,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         id: `ast_${i}`,
         x: (Math.random() - 0.5) * 4000,
         y: (Math.random() - 0.5) * 1800,
-        z: (Math.random() - 0.5) * 5000,
+        z: (Math.random() - 0.5) * 10000, // wider distribution
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         vz: (Math.random() - 0.5) * 1.5,
@@ -328,15 +328,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
     game.current.asteroids = asteroids;
 
-    // 3. Spawn Fleet AI (total 80 fighters: 40 vs 40)
-    const teamSize = 40;
+    // 3. Spawn Fleet AI (total 60 fighters: 30 vs 30)
+    const teamSize = 30;
     const oppFaction = faction === 'light' ? 'dark' : 'light';
     
-    // Spawn team AI (39 allies + player = 40)
+    // Spawn team AI (29 allies + player = 30)
     for (let i = 0; i < teamSize - 1; i++) {
       game.current.ships.push(createAiShipWithPilot(faction, i));
     }
-    // Spawn opponent AI (40 enemies)
+    // Spawn opponent AI (30 enemies)
     for (let i = 0; i < teamSize; i++) {
       game.current.ships.push(createAiShipWithPilot(oppFaction, i));
     }
@@ -443,7 +443,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.maxHp = playerDef.stats.shield;
       state.playerShip.x = 0;
       state.playerShip.y = 0;
-      state.playerShip.z = -2900 * pForwardZ; // spawn at faction base
+      state.playerShip.z = -5900 * pForwardZ; // spawn at faction base
       state.playerShip.vx = 0;
       state.playerShip.vy = 0;
       state.playerShip.vz = pForwardZ * playerDef.stats.speed * 4.5;
@@ -451,7 +451,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       state.playerShip.pitch = 0;
       state.playerShip.yaw = 0;
     }
-    camera.current.z = -2900 * pForwardZ - 260 * pForwardZ;
+    camera.current.z = -5900 * pForwardZ - 260 * pForwardZ;
     camera.current.x = 0;
     camera.current.y = 45;
     setIsDead(false);
@@ -509,9 +509,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const forwardZ = faction === 'light' ? 1 : -1;
 
     // Check for hyperspace loop
-    if (player.hp > 0 && (player.z || 0) * forwardZ > 2900) {
+    if (player.hp > 0 && (player.z || 0) * forwardZ > 5900) {
       // Warp player back to base
-      player.z = -2900 * forwardZ;
+      player.z = -5900 * forwardZ;
       camera.current.z = (player.z || 0) - 260 * forwardZ;
       camera.current.x = player.x;
       camera.current.y = player.y + 45;
@@ -523,25 +523,34 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     if (player.hp > 0) {
       const canvas = canvasRef.current;
-      if (canvas) {
-        // Guide X/Y movements based on crosshair offset from screen center
-        const mouseDx = (mousePos.current.x - canvas.width / 2) / (canvas.width / 2);
-        const mouseDy = -(mousePos.current.y - canvas.height / 2) / (canvas.height / 2); // invert Y
 
-        // Multiply by forwardZ so ship follows reticle correctly in inverted Z view
-        player.vx += mouseDx * forwardZ * 2.0;
-        player.vy += mouseDy * 1.8;
-      }
-
-      // Roll and Yaw banking adjustments with Q/D dodge keys
+      // Determine keyboard roll and steer target offsets
+      let targetXOffset = 0;
       if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
-        player.vx -= 3.0 * forwardZ;
+        targetXOffset = -380 * forwardZ; // steer left in screen space
         player.roll = Math.max(-0.6, (player.roll || 0) - 0.08);
       } else if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
-        player.vx += 3.0 * forwardZ;
+        targetXOffset = 380 * forwardZ; // steer right in screen space
         player.roll = Math.min(0.6, (player.roll || 0) + 0.08);
       } else {
         player.roll = (player.roll || 0) * 0.88; // return to balance
+      }
+
+      if (canvas) {
+        // Calculate target coordinates under the mouse crosshair (260 depth ahead of camera)
+        const relZ = 260;
+        const scale = 450 / relZ;
+        
+        // Inverse projection from screen space to world space coordinates
+        const mouseTargetX = camera.current.x + (mousePos.current.x - canvas.width / 2) / (scale * forwardZ);
+        const mouseTargetY = camera.current.y + (canvas.height / 2 - mousePos.current.y) / scale;
+
+        const targetX = mouseTargetX + targetXOffset;
+        const targetY = mouseTargetY;
+
+        // Easing/spring-damper physics towards target coordinates to prevent sliding
+        player.vx += (targetX - player.x) * 0.15 - player.vx * 0.35;
+        player.vy += (targetY - player.y) * 0.15 - player.vy * 0.35;
       }
 
       // Z Accelerate (boost) / S deceleration (brake)
@@ -555,7 +564,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       player.vz = (player.vz || 0) + (targetVz - (player.vz || 0)) * 0.08;
 
-      // Friction damping
+      // Friction damping for secondary movements
       player.vx *= 0.82;
       player.vy *= 0.82;
 
@@ -564,9 +573,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.y += player.vy;
       player.z = (player.z || 0) + (player.vz || 0);
 
-      // Boundaries inside the 3D tunnel box
-      player.x = Math.max(-2000, Math.min(2000, player.x));
-      player.y = Math.max(-950, Math.min(950, player.y));
+      // Boundaries inside the 3D tunnel box (kept inside the wireframe walls)
+      player.x = Math.max(-1800, Math.min(1800, player.x));
+      player.y = Math.max(-850, Math.min(850, player.y));
       player.pitch = player.vy * 0.025;
       player.yaw = player.vx * 0.025 * forwardZ;
 
@@ -607,6 +616,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (ship.isPlayer) return;
       if (ship.hp <= 0) return;
 
+      const inClashZone = Math.abs(ship.z || 0) <= 2000;
+
       // AI decision tick
       if (!ship.aiDecisionTimer) ship.aiDecisionTimer = 0;
       ship.aiDecisionTimer -= 1;
@@ -614,48 +625,60 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (ship.aiDecisionTimer <= 0) {
         ship.aiDecisionTimer = 20 + Math.floor(Math.random() * 30);
 
-        // Defender helper behavior: if ship is ally, check if any enemy is targeting player
-        const isAlly = ship.faction === faction;
-        let defenderTargetId: string | undefined = undefined;
+        if (inClashZone) {
+          // Defender helper behavior: if ship is ally, check if any enemy is targeting player in clash zone
+          const isAlly = ship.faction === faction;
+          let defenderTargetId: string | undefined = undefined;
 
-        if (isAlly) {
-          const playerPursuer = state.ships.find(
-            s => s.faction !== faction && s.targetId === 'player' && s.hp > 0
-          );
-          if (playerPursuer && Math.random() < 0.65) {
-            defenderTargetId = playerPursuer.id;
-          }
-        }
-
-        if (defenderTargetId) {
-          ship.targetId = defenderTargetId;
-          ship.aiState = 'chase';
-        } else {
-          // Scan for nearest opposite faction target in 3D
-          let nearestTarget: SpaceShip | null = null;
-          let minDist = 4500;
-
-          state.ships.forEach(t => {
-            if (t.faction !== ship.faction && t.hp > 0) {
-              const dx = t.x - ship.x;
-              const dy = t.y - ship.y;
-              const dz = (t.z || 0) - (ship.z || 0);
-              const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-              if (dist < minDist) {
-                minDist = dist;
-                nearestTarget = t;
-              }
+          if (isAlly) {
+            const playerPursuer = state.ships.find(
+              s => s.faction !== faction && s.targetId === 'player' && s.hp > 0 && Math.abs(s.z || 0) <= 2000
+            );
+            if (playerPursuer && Math.random() < 0.65) {
+              defenderTargetId = playerPursuer.id;
             }
-          });
+          }
 
-          if (nearestTarget) {
-            ship.targetId = (nearestTarget as SpaceShip).id;
+          if (defenderTargetId) {
+            ship.targetId = defenderTargetId;
             ship.aiState = 'chase';
           } else {
-            ship.targetId = undefined;
-            ship.aiState = 'patrol';
+            // Scan for nearest opposite faction target in 3D (within clashing region)
+            let nearestTarget: SpaceShip | null = null;
+            let minDist = 4500;
+
+            state.ships.forEach(t => {
+              if (t.faction !== ship.faction && t.hp > 0 && Math.abs(t.z || 0) <= 2200) {
+                const dx = t.x - ship.x;
+                const dy = t.y - ship.y;
+                const dz = (t.z || 0) - (ship.z || 0);
+                const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                if (dist < minDist) {
+                  minDist = dist;
+                  nearestTarget = t;
+                }
+              }
+            });
+
+            if (nearestTarget) {
+              ship.targetId = (nearestTarget as SpaceShip).id;
+              ship.aiState = 'chase';
+            } else {
+              ship.targetId = undefined;
+              ship.aiState = 'patrol';
+            }
           }
+        } else {
+          // Outside clashing zone, bias to patrol straight towards center
+          ship.targetId = undefined;
+          ship.aiState = 'patrol';
         }
+      }
+
+      // Enforce patrol state when outside the clashing zone
+      if (!inClashZone) {
+        ship.aiState = 'patrol';
+        ship.targetId = undefined;
       }
 
       // Execute AI
@@ -667,8 +690,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const dz = (target.z || 0) - (ship.z || 0);
           const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-          const flySpeed = ship.stats.speed * 3.5;
-          const ease = 0.08;
+          // Faster AI chase velocity matching player's cruising pace
+          const flySpeed = ship.stats.speed * 4.2;
+          const ease = 0.04;
           ship.vx += ((dx / (dist || 1)) * flySpeed - ship.vx) * ease;
           ship.vy += ((dy / (dist || 1)) * flySpeed - ship.vy) * ease;
           ship.vz = (ship.vz || 0) + ((dz / (dist || 1)) * flySpeed - (ship.vz || 0)) * ease;
@@ -687,11 +711,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       } else {
         // Patrol/glide towards center Z = 0
-        ship.vx *= 0.92;
-        ship.vy *= 0.92;
+        ship.vx *= 0.95;
+        ship.vy *= 0.95;
         const aiForward = ship.faction === 'light' ? 1 : -1;
-        const targetVz = aiForward * ship.stats.speed * 2.5;
-        ship.vz = (ship.vz || 0) + (targetVz - (ship.vz || 0)) * 0.06;
+        // Faster AI patrol velocity
+        const targetVz = aiForward * ship.stats.speed * 3.5;
+        ship.vz = (ship.vz || 0) + (targetVz - (ship.vz || 0)) * 0.05;
         ship.roll = 0;
       }
 
@@ -701,18 +726,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.z = (ship.z || 0) + (ship.vz || 0);
 
       // AI boundaries
-      ship.x = Math.max(-2200, Math.min(2200, ship.x));
-      ship.y = Math.max(-1050, Math.min(1050, ship.y));
+      ship.x = Math.max(-1900, Math.min(1900, ship.x));
+      ship.y = Math.max(-900, Math.min(900, ship.y));
 
-      // AI recycling when overshooting bases
+      // AI recycling when overshooting corridor boundaries in either direction
       const shipForward = ship.faction === 'light' ? 1 : -1;
-      if (ship.z * shipForward > 3100) {
-        ship.z = -3000 * shipForward;
+      if (Math.abs(ship.z || 0) > 6100) {
+        ship.z = -6000 * shipForward;
         ship.x = (Math.random() - 0.5) * 3000;
         ship.y = (Math.random() - 0.5) * 1000;
         ship.vx = 0;
         ship.vy = 0;
-        ship.vz = shipForward * ship.stats.speed * (2.0 + Math.random() * 2.0);
+        ship.vz = shipForward * ship.stats.speed * (3.0 + Math.random() * 1.0);
         ship.hp = ship.maxHp;
       }
     });
@@ -771,14 +796,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               const deadShip = ship;
               setTimeout(() => {
                 if (!isMatchOver) {
-                  const aiForward = deadShip.faction === 'light' ? 1 : -1;
-                  deadShip.hp = deadShip.maxHp;
-                  deadShip.z = -3000 * aiForward; // respawn at faction base
-                  deadShip.x = (Math.random() - 0.5) * 2000;
-                  deadShip.y = (Math.random() - 0.5) * 800;
-                  deadShip.vx = 0;
-                  deadShip.vy = 0;
-                  deadShip.vz = aiForward * deadShip.stats.speed * (2.0 + Math.random() * 2.0);
+                   const aiForward = deadShip.faction === 'light' ? 1 : -1;
+                   deadShip.hp = deadShip.maxHp;
+                   deadShip.z = -6000 * aiForward; // respawn at faction base
+                   deadShip.x = (Math.random() - 0.5) * 2000;
+                   deadShip.y = (Math.random() - 0.5) * 800;
+                   deadShip.vx = 0;
+                   deadShip.vy = 0;
+                   deadShip.vz = aiForward * deadShip.stats.speed * (3.0 + Math.random() * 1.0);
                 }
               }, 4000);
             }
@@ -836,12 +861,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 if (!isMatchOver) {
                   const aiForward = deadShip.faction === 'light' ? 1 : -1;
                   deadShip.hp = deadShip.maxHp;
-                  deadShip.z = -3000 * aiForward; // respawn at faction base
+                  deadShip.z = -6000 * aiForward; // respawn at faction base
                   deadShip.x = (Math.random() - 0.5) * 2000;
                   deadShip.y = (Math.random() - 0.5) * 800;
                   deadShip.vx = 0;
                   deadShip.vy = 0;
-                  deadShip.vz = aiForward * deadShip.stats.speed * (2.0 + Math.random() * 2.0);
+                  deadShip.vz = aiForward * deadShip.stats.speed * (3.0 + Math.random() * 1.0);
                 }
               }, 4000);
             }
@@ -999,11 +1024,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     starsBackground.current.forEach((star, index) => {
       let starZ = star.z;
       if (forwardDir === 1) {
-        while (starZ < camera.current.z) starZ += 3000;
-        while (starZ > camera.current.z + 3000) starZ -= 3000;
+        while (starZ < camera.current.z) starZ += 6000;
+        while (starZ > camera.current.z + 6000) starZ -= 6000;
       } else {
-        while (starZ > camera.current.z) starZ -= 3000;
-        while (starZ < camera.current.z - 3000) starZ += 3000;
+        while (starZ > camera.current.z) starZ -= 6000;
+        while (starZ < camera.current.z - 6000) starZ += 6000;
       }
 
       const p = project(star.x, star.y, starZ);
@@ -1025,10 +1050,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.lineWidth = 1;
     const tunnelW = 2000;
     const tunnelH = 950;
-    const zSpacing = 300;
+    const zSpacing = 350;
     const zStart = Math.floor(camera.current.z / zSpacing) * zSpacing;
 
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 20; i++) {
       const z = zStart + i * zSpacing * forwardDir;
       // Project the 4 corners of the tunnel at Z
       const c1 = project(-tunnelW, -tunnelH, z);
@@ -1046,7 +1071,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx.stroke();
 
         // Floor glow for bases
-        const isNearBase = Math.abs(z) > 1800;
+        const isNearBase = Math.abs(z) > 4000;
         if (isNearBase) {
           const isLightBase = z < 0;
           ctx.fillStyle = isLightBase ? 'rgba(16, 185, 129, 0.006)' : 'rgba(239, 68, 68, 0.006)';
@@ -1060,28 +1085,28 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
-    // Draw long lines connecting tunnel corners
-    const pFar1 = project(-tunnelW, -tunnelH, camera.current.z + 3200 * forwardDir);
-    const pFar2 = project(tunnelW, -tunnelH, camera.current.z + 3200 * forwardDir);
-    const pFar3 = project(tunnelW, tunnelH, camera.current.z + 3200 * forwardDir);
-    const pFar4 = project(-tunnelW, tunnelH, camera.current.z + 3200 * forwardDir);
+    // Draw long lines connecting tunnel corners (ensuring all corners project successfully to prevent crash)
+    const pFar1 = project(-tunnelW, -tunnelH, camera.current.z + 7000 * forwardDir);
+    const pFar2 = project(tunnelW, -tunnelH, camera.current.z + 7000 * forwardDir);
+    const pFar3 = project(tunnelW, tunnelH, camera.current.z + 7000 * forwardDir);
+    const pFar4 = project(-tunnelW, tunnelH, camera.current.z + 7000 * forwardDir);
 
     const pNear1 = project(-tunnelW, -tunnelH, camera.current.z + 100 * forwardDir);
     const pNear2 = project(tunnelW, -tunnelH, camera.current.z + 100 * forwardDir);
     const pNear3 = project(tunnelW, tunnelH, camera.current.z + 100 * forwardDir);
     const pNear4 = project(-tunnelW, tunnelH, camera.current.z + 100 * forwardDir);
 
-    if (pFar1 && pNear1) {
+    if (pFar1 && pNear1 && pFar2 && pNear2 && pFar3 && pNear3 && pFar4 && pNear4) {
       ctx.beginPath();
       ctx.moveTo(pNear1.x, pNear1.y); ctx.lineTo(pFar1.x, pFar1.y);
-      ctx.moveTo(pNear2!.x, pNear2!.y); ctx.lineTo(pFar2!.x, pFar2!.y);
-      ctx.moveTo(pNear3!.x, pNear3!.y); ctx.lineTo(pFar3!.x, pFar3!.y);
-      ctx.moveTo(pNear4!.x, pNear4!.y); ctx.lineTo(pFar4!.x, pFar4!.y);
+      ctx.moveTo(pNear2.x, pNear2.y); ctx.lineTo(pFar2.x, pFar2.y);
+      ctx.moveTo(pNear3.x, pNear3.y); ctx.lineTo(pFar3.x, pFar3.y);
+      ctx.moveTo(pNear4.x, pNear4.y); ctx.lineTo(pFar4.x, pFar4.y);
       ctx.stroke();
     }
 
-    // Render Light Side Base Gate (at Z = -3000)
-    const pLightBase = project(0, 0, -3000);
+    // Render Light Side Base Gate (at Z = -6000)
+    const pLightBase = project(0, 0, -6000);
     if (pLightBase) {
       const baseScale = pLightBase.scale * 20;
       ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)'; // Emerald
@@ -1105,8 +1130,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
-    // Render Dark Side Base Gate (at Z = 3000)
-    const pDarkBase = project(0, 0, 3000);
+    // Render Dark Side Base Gate (at Z = 6000)
+    const pDarkBase = project(0, 0, 6000);
     if (pDarkBase) {
       const baseScale = pDarkBase.scale * 20;
       ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; // Red
@@ -1200,7 +1225,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const projectedSize = baseSize * p.scale * 0.16;
 
         if (projectedSize > 2) {
-          const isFlyingSameDir = ship.faction === faction;
+          const shipVz = ship.vz || 0;
+          // Dynamically calculate orientation based on actual flight velocity direction relative to player's camera facing
+          const isFlyingSameDir = Math.abs(shipVz) > 0.5 
+            ? (shipVz * forwardDir > 0) 
+            : (ship.faction === faction);
           const baseAngle = isFlyingSameDir ? -Math.PI / 2 : Math.PI / 2;
 
           drawPixelShip(
@@ -1212,7 +1241,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ship.defId,
             ship.faction,
             ship.color,
-            Math.abs(ship.vx) > 0.3 || Math.abs(ship.vy) > 0.3 || Math.abs(ship.vz || 0) > 2
+            Math.abs(ship.vx) > 0.3 || Math.abs(ship.vy) > 0.3 || Math.abs(shipVz) > 2
           );
 
           // Draw health bar
