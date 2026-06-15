@@ -1036,18 +1036,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       return;
     }
 
-    // Camera Y-bias shifting towards the center depending on where you are:
-    // If player is in the South (Dark side), camera Y shifts towards the center (North/UP).
-    // If player is in the North (Light side), camera Y shifts towards the center (South/DOWN).
-    const centerY = WORLD_SIZE / 2; // 4000
-    const rawShiftY = (player.y - centerY) * 0.35; // shift up to 35% of the distance from the center
-    
-    // Cap the shift so the player remains fully visible on screen (with 150px safety margin)
-    const maxShiftY = Math.max(0, canvas.height / 2 - 150);
-    const shiftY = Math.max(-maxShiftY, Math.min(maxShiftY, rawShiftY));
-
+    // Camera is centered exactly on the player
     const cameraX = player.x;
-    const cameraY = player.y - shiftY;
+    const cameraY = player.y;
 
     const offsetX = canvas.width / 2 - cameraX;
     const offsetY = canvas.height / 2 - cameraY;
