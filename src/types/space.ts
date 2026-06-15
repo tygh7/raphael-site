@@ -47,6 +47,13 @@ export interface SpaceShip {
   targetId?: string;
   aiState?: 'patrol' | 'chase' | 'avoid';
   aiDecisionTimer?: number;
+
+  // Special moves & mechanics
+  lastHitTime?: number;
+  boostType?: 'dash' | 'multiplier';
+  lastBoostTime?: number;
+  boostActiveTimer?: number; // active frames remaining for multiplier boost
+  lastBombTime?: number;
 }
 
 export interface Laser {
@@ -62,6 +69,7 @@ export interface Laser {
   damage: number;
   rangeRemaining: number;
   color: string;
+  isBomb?: boolean; // special bomb projectile
 }
 
 export interface Particle {
