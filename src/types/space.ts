@@ -34,6 +34,10 @@ export interface SpaceShip {
   stats: ShipStats;
   color: string;
   
+  // Stats
+  kills?: number;
+  deaths?: number;
+
   // AI targeting
   targetId?: string;
   aiState?: 'patrol' | 'chase' | 'avoid';
