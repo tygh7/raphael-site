@@ -65,6 +65,10 @@ const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
   return 'shield'; // solar_sailer, tie_fighter, tie_silencer
 };
 
+const getSpecialCooldown = (specialType: 'beam' | 'shield' | undefined): number => {
+  return specialType === 'beam' ? 13000 : 7000;
+};
+
 const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
   // Light side: x_wing, delta_7 -> dash; falcon, jedi_interceptor -> multiplier
   if (defId === 'x_wing' || defId === 'delta_7') return 'dash';
@@ -361,20 +365,26 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const stats = { ...def.stats };
     if (fact !== faction) { // Opponent bot
       if (difficulty === 'leila') {
-        stats.shield = Math.round(stats.shield * 0.45);
-        stats.speed = stats.speed * 0.5;
-        stats.power = Math.round(stats.power * 0.45);
-        stats.rate = stats.rate * 2.2;
+        stats.shield = Math.round(stats.shield * 0.32);
+        stats.speed = stats.speed * 0.45;
+        stats.power = Math.round(stats.power * 0.32);
+        stats.rate = stats.rate * 2.8;
       } else if (difficulty === 'c3po') {
-        stats.shield = Math.round(stats.shield * 0.7);
-        stats.speed = stats.speed * 0.75;
-        stats.power = Math.round(stats.power * 0.7);
-        stats.rate = stats.rate * 1.4;
+        stats.shield = Math.round(stats.shield * 0.55);
+        stats.speed = stats.speed * 0.7;
+        stats.power = Math.round(stats.power * 0.55);
+        stats.rate = stats.rate * 1.8;
+      } else if (difficulty === 'clone') {
+        // Medium tier — still gets a slight handicap so combat stays forgiving
+        stats.shield = Math.round(stats.shield * 0.8);
+        stats.speed = stats.speed * 0.92;
+        stats.power = Math.round(stats.power * 0.8);
+        stats.rate = stats.rate * 1.2;
       } else if (difficulty === 'jarjar') {
-        stats.shield = Math.round(stats.shield * 1.55);
-        stats.speed = stats.speed * 1.3;
-        stats.power = Math.round(stats.power * 1.40);
-        stats.rate = stats.rate * 0.65;
+        stats.shield = Math.round(stats.shield * 1.35);
+        stats.speed = stats.speed * 1.2;
+        stats.power = Math.round(stats.power * 1.20);
+        stats.rate = stats.rate * 0.75;
       }
     }
 
@@ -1014,7 +1024,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   const detonateBomb = (bomb: Laser) => {
     const state = game.current;
-    const splashRadius = 600; // upgraded from 400 to match wider area request
+    const splashRadius = 400; // reduced back to 400 to make the area damage smaller
     const splashDamage = 150; 
 
     // Screenshake based on proximity to player 1
@@ -1047,20 +1057,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
-    // Trigger purple screen flash
-    screenFlash.current = {
-      duration: 15,
-      maxDuration: 15,
-      color: 'rgba(192, 132, 252, 0.25)'
-    };
-
-    if (isTwoPlayers) {
-      screenFlash2.current = {
-        duration: 15,
-        maxDuration: 15,
-        color: 'rgba(192, 132, 252, 0.25)'
-      };
-    }
+    // Trigger purple screen flash disabled to keep screen color unchanged
 
     // Spawn purple splash explosion particles & shockwaves
     spawnSplashExplosion(bomb.x, bomb.y, '#c084fc', 70);
@@ -1301,9 +1298,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     // --- 2. Update Player Ship Physics ---
     const player = state.playerShip;
     if (player.hp > 0) {
-      // Health Regeneration (if not hit for 3s / 3000ms)
-      if (player.lastHitTime && Date.now() - player.lastHitTime > 3000) {
-        player.hp = Math.min(player.maxHp, player.hp + 0.08); // regenerates ~4.8 HP per second
+      // Health Regeneration (if not hit for 2s / 2000ms)
+      if (player.lastHitTime && Date.now() - player.lastHitTime > 2000) {
+        player.hp = Math.min(player.maxHp, player.hp + 0.18); // regenerates ~10.8 HP per second
       }
 
       // Check boost status
@@ -1472,13 +1469,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         triggerSpeedBoost(player);
       }
 
-      // Special Move Input (7s reload)
+      // Special Move Input (13s reload for beam, 7s for shield)
       const specialPressed = keyboardLayout.current === 'azerty'
         ? keysPressed.current['KeyW']
         : keysPressed.current['KeyZ'];
       const finalSpecialPressed = specialPressed || gpSpecial;
       const lastSpecial = player.lastSpecialTime || 0;
-      if (finalSpecialPressed && now - lastSpecial >= 7000) {
+      if (finalSpecialPressed && now - lastSpecial >= getSpecialCooldown(player.specialType)) {
         triggerSpecialMove(player);
       }
 
@@ -1569,9 +1566,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     // --- 2b. Update Player 2 Ship Physics ---
     const player2 = state.player2Ship;
     if (isTwoPlayers && player2 && player2.hp > 0) {
-      // Health Regeneration (if not hit for 3s / 3000ms)
-      if (player2.lastHitTime && Date.now() - player2.lastHitTime > 3000) {
-        player2.hp = Math.min(player2.maxHp, player2.hp + 0.08); // regenerates ~4.8 HP per second
+      // Health Regeneration (if not hit for 2s / 2000ms)
+      if (player2.lastHitTime && Date.now() - player2.lastHitTime > 2000) {
+        player2.hp = Math.min(player2.maxHp, player2.hp + 0.18); // regenerates ~10.8 HP per second
       }
 
       // Check boost status
@@ -1719,7 +1716,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       const specialPressed2 = keysPressed.current['KeyO'] || keysPressed.current['Numpad2'] || keysPressed.current['Slash'] || gpSpecial2;
       const lastSpecial2 = player2.lastSpecialTime || 0;
-      if (specialPressed2 && now - lastSpecial2 >= 7000) {
+      if (specialPressed2 && now - lastSpecial2 >= getSpecialCooldown(player2.specialType)) {
         triggerSpecialMove(player2);
       }
 
@@ -1997,7 +1994,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ship.vy += Math.sin(dodgeAngle) * 0.25;
 
         // Trigger shield/dash if ready
-        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= 7000) {
+        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType)) {
           triggerSpecialMove(ship);
         } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
           triggerSpeedBoost(ship);
@@ -2031,7 +2028,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       
       if (isChasedByEnemy && activeChaser) {
         // Actively chased! Trigger immediate defensive dash/shield if available
-        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= 7000) {
+        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType)) {
           triggerSpecialMove(ship);
         } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
           triggerSpeedBoost(ship);
@@ -2086,9 +2083,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             }
           }
 
-          // Special Move logic (7s reload)
+          // Special Move logic (13s reload for beam, 7s for shield)
           const lastSpecial = ship.lastSpecialTime || 0;
-          if (now - lastSpecial >= 7000) {
+          if (now - lastSpecial >= getSpecialCooldown(ship.specialType)) {
             if (ship.specialType === 'beam' && dist < 650 && Math.abs(diff) < 0.2) {
               triggerSpecialMove(ship);
             } else if (ship.specialType === 'shield' && (ship.hp < ship.maxHp * 0.45 || dist < 250)) {
@@ -2193,7 +2190,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
         // Flee shield: activate if low HP and threat is close
         const lastSpecial = ship.lastSpecialTime || 0;
-        if (ship.specialType === 'shield' && now - lastSpecial >= 7000 && threatDist < 300) {
+        if (ship.specialType === 'shield' && now - lastSpecial >= getSpecialCooldown(ship.specialType) && threatDist < 300) {
           triggerSpecialMove(ship);
         }
 
@@ -2244,7 +2241,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           }
 
           const lastSpecial = ship.lastSpecialTime || 0;
-          if (now - lastSpecial >= 7000) {
+          if (now - lastSpecial >= getSpecialCooldown(ship.specialType)) {
             if (ship.specialType === 'beam' && dist < 600 && Math.abs(diff) < 0.2) {
               triggerSpecialMove(ship);
             } else if (ship.specialType === 'shield' && dist < 200) {
@@ -2782,7 +2779,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const boostRemainingSec = boostActive ? ((player.boostActiveTimer || 0) / 60) : 0;
 
     const specialElapsed = now - (player.lastSpecialTime || 0);
-    const specialCooldownPercent = Math.min(100, Math.floor((specialElapsed / 7000) * 100));
+    const specialCooldownLimit = getSpecialCooldown(player.specialType);
+    const specialCooldownPercent = Math.min(100, Math.floor((specialElapsed / specialCooldownLimit) * 100));
 
     const specialActive = player.shieldActiveTimer !== undefined && player.shieldActiveTimer > 0;
     const specialRemainingSec = specialActive ? Math.ceil((player.shieldActiveTimer || 0) / 60) : 0;
@@ -2809,6 +2807,47 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       specialRemainingSec,
       specialType: player.specialType || 'beam'
     });
+
+    // Sync HUD 2 for co-op split-screen
+    if (isTwoPlayers && player2) {
+      const bombElapsed2 = now - (player2.lastBombTime || 0);
+      const bombCooldownPercent2 = Math.min(100, Math.floor((bombElapsed2 / 5000) * 100));
+
+      const boostElapsed2 = now - (player2.lastBoostTime || 0);
+      const boostCooldownPercent2 = Math.min(100, Math.floor((boostElapsed2 / 5000) * 100));
+
+      const boostActive2 = player2.boostActiveTimer !== undefined && player2.boostActiveTimer > 0;
+      const boostRemainingSec2 = boostActive2 ? ((player2.boostActiveTimer || 0) / 60) : 0;
+
+      const specialCooldownLimit2 = getSpecialCooldown(player2.specialType);
+      const specialElapsed2 = now - (player2.lastSpecialTime || 0);
+      const specialCooldownPercent2 = Math.min(100, Math.floor((specialElapsed2 / specialCooldownLimit2) * 100));
+
+      const specialActive2 = player2.shieldActiveTimer !== undefined && player2.shieldActiveTimer > 0;
+      const specialRemainingSec2 = specialActive2 ? Math.ceil((player2.shieldActiveTimer || 0) / 60) : 0;
+
+      setHud2({
+        hp: player2.hp,
+        maxHp: player2.maxHp,
+        score: state.score,
+        kills: player2.kills || 0,
+        deaths: player2.deaths || 0,
+        alliesCount: state.ships.filter(s => s.faction === faction2 && !s.isPlayer && s.hp > 0).length,
+        enemiesCount: state.ships.filter(s => s.faction !== faction2 && s.hp > 0).length,
+        speed: Math.round(Math.sqrt(player2.vx * player2.vx + player2.vy * player2.vy) * 10),
+        lightKills,
+        darkKills,
+        bombCooldownPercent: bombCooldownPercent2,
+        boostCooldownPercent: boostCooldownPercent2,
+        boostActive: boostActive2,
+        boostRemainingSec: boostRemainingSec2,
+        boostType: player2.boostType || 'dash',
+        specialCooldownPercent: specialCooldownPercent2,
+        specialActive: specialActive2,
+        specialRemainingSec: specialRemainingSec2,
+        specialType: player2.specialType || 'beam'
+      });
+    }
   };
 
   // Launch a laser shot

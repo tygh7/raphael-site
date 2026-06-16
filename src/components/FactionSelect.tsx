@@ -615,7 +615,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               {renderStatBar('LASER POWER', currentShip.stats.power, 40, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
               {renderStatBar('FIRE FREQUENCY', Math.round(10000 / currentShip.stats.rate), 100, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
               {renderStatBar('LASER RANGE', currentShip.stats.range, 1000, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
-              {renderStatBar('DEFENSIVE SHIELD', currentShip.stats.shield, 650, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('DEFENSIVE SHIELD', currentShip.stats.shield, 1000, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
             </div>
 
             {/* Special Power Info */}
