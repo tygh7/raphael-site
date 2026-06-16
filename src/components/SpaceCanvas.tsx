@@ -1284,12 +1284,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const state = game.current;
     if (!state.playerShip) return;
 
-    // --- 1. Screen Shake Decay ---
+    // --- 1. Screen Shake & Flash Decay ---
     if (screenShake.current.duration > 0) {
       screenShake.current.duration -= 1;
     }
     if (screenShake2.current.duration > 0) {
       screenShake2.current.duration -= 1;
+    }
+    if (screenFlash.current.duration > 0) {
+      screenFlash.current.duration -= 1;
+    }
+    if (screenFlash2.current.duration > 0) {
+      screenFlash2.current.duration -= 1;
     }
 
     // --- 2. Update Player Ship Physics ---
@@ -2414,8 +2420,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       let hit = false;
       for (const ship of state.ships) {
         if (ship.hp <= 0) continue; // Skip dead ships
-        if (ship.faction === laser.faction && !ship.isPlayer) continue; // friendly-fire safety
-        if (ship.isPlayer && laser.faction === player.faction) continue;
+        if (laser.ownerId === ship.id) continue; // Cannot hit itself
+        if (ship.faction === laser.faction) continue; // friendly-fire safety (works for players and AI)
 
         const dx = ship.x - laser.x;
         const dy = ship.y - laser.y;
