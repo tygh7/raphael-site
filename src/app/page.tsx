@@ -12,6 +12,7 @@ export default function SpacePage() {
   const [gameMode, setGameState] = useState<'select' | 'battle'>('select');
   const [faction, setFaction] = useState<Faction | null>(null);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
+  const [playerName, setPlayerName] = useState<string>('Rogue Leader');
   
   // Game stats
   const [highScore, setHighScore] = useState<number>(0);
@@ -30,15 +31,16 @@ export default function SpacePage() {
   }, []);
 
   // Handle ship launch
-  const handleLaunch = (chosenFaction: Faction, shipId: string) => {
+  const handleLaunch = (chosenFaction: Faction, shipId: string, name: string) => {
     setFaction(chosenFaction);
     setSelectedShipId(shipId);
+    setPlayerName(name);
     setGameState('battle');
 
     const shipName = shipId.replace('_', ' ').toUpperCase();
     setQuestHistory(prev => [
       ...prev,
-      `🚀 Launched ${shipName} in support of the ${chosenFaction === 'light' ? 'Light' : 'Dark'} Side!`
+      `🚀 Pilot ${name} launched in ${shipName} for the ${chosenFaction === 'light' ? 'Light' : 'Dark'} Side!`
     ]);
   };
 
@@ -126,6 +128,7 @@ export default function SpacePage() {
               <SpaceCanvas
                 faction={faction}
                 selectedShipId={selectedShipId}
+                playerName={playerName}
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}
               />
