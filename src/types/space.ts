@@ -43,10 +43,17 @@ export interface SpaceShip {
   kills?: number;
   deaths?: number;
 
-  // AI targeting
+  // AI targeting and squadron
   targetId?: string;
-  aiState?: 'patrol' | 'chase' | 'avoid' | 'escape' | 'support';
+  aiState?: 'patrol' | 'chase' | 'avoid' | 'escape' | 'support' | 'formation';
   aiDecisionTimer?: number;
+  isSquadLeader?: boolean;
+  squadLeaderId?: string;
+  formationAngleOffset?: number;
+  formationDistOffset?: number;
+  zigzagTimer?: number;
+  zigzagDirection?: number;
+  isChased?: boolean;
 
   // Special moves & mechanics
   lastHitTime?: number;
@@ -90,6 +97,8 @@ export interface Particle {
   size: number;
   isShockwave?: boolean;
   maxRadius?: number;
+  isLightning?: boolean; // lightning/spark arc
+  isFire?: boolean;      // flame/smoke billowing particle
 }
 
 export interface Asteroid {

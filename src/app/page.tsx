@@ -16,9 +16,9 @@ export default function SpacePage() {
   
   // Game stats
   const [highScore, setHighScore] = useState<number>(0);
-  const [questHistory, setQuestHistory] = useState<string[]>([
-    'Hyperdrive core initialized.',
-    'Awaiting fleet coordinates.'
+  const [questHistory, setQuestHistory] = useState<Array<{ text: string; type: 'light' | 'dark' | 'system' }>>([
+    { text: 'Hyperdrive core initialized.', type: 'system' },
+    { text: 'Awaiting fleet coordinates.', type: 'system' }
   ]);
   const [showRules, setShowRules] = useState(false);
 
@@ -40,7 +40,10 @@ export default function SpacePage() {
     const shipName = shipId.replace('_', ' ').toUpperCase();
     setQuestHistory(prev => [
       ...prev,
-      `🚀 Pilot ${name} launched in ${shipName} for the ${chosenFaction === 'light' ? 'Light' : 'Dark'} Side!`
+      {
+        text: `🚀 Pilot ${name} launched in ${shipName} for the ${chosenFaction === 'light' ? 'Light' : 'Dark'} Side!`,
+        type: chosenFaction
+      }
     ]);
   };
 
@@ -58,17 +61,23 @@ export default function SpacePage() {
         origin: { y: 0.6 },
         colors: ['#ef4444', '#10b981', '#38bdf8']
       });
-      setQuestHistory(prev => [...prev, `👑 NEW HIGH SCORE: ${score} points!`]);
+      setQuestHistory(prev => [...prev, { text: `👑 NEW HIGH SCORE: ${score} points!`, type: 'system' }]);
     }
 
     setQuestHistory(prev => [
       ...prev,
-      `💥 Starfighter destroyed. Captured ${kills} enemy pilots. Sector score: ${score}`
+      {
+        text: `💥 Starfighter destroyed. Captured ${kills} enemy pilots. Sector score: ${score}`,
+        type: 'system'
+      }
     ]);
   };
 
   const handleResetHistory = () => {
-    setQuestHistory(['Hyperdrive core initialized.', 'Awaiting fleet coordinates.']);
+    setQuestHistory([
+      { text: 'Hyperdrive core initialized.', type: 'system' },
+      { text: 'Awaiting fleet coordinates.', type: 'system' }
+    ]);
   };
 
   return (
@@ -131,7 +140,7 @@ export default function SpacePage() {
                 playerName={playerName}
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}
-                onKillFeed={(msg) => setQuestHistory(prev => [...prev, msg])}
+                onKillFeed={(msg, type) => setQuestHistory(prev => [...prev, { text: msg, type: type || 'system' }])}
               />
             )
           )}
@@ -164,11 +173,22 @@ export default function SpacePage() {
               <Compass className="w-4 h-4 text-sky-400 animate-spin-slow" />
             </div>
             <div className="h-[260px] border border-zinc-850 bg-[#07070a]/90 p-3 rounded-xl overflow-y-auto flex flex-col gap-2 shadow-inner scrollbar-thin scrollbar-thumb-zinc-800">
-              {questHistory.map((log, index) => (
-                <div key={index} className="text-xs leading-relaxed font-mono text-zinc-400 border-b border-zinc-900 pb-1.5 last:border-0 last:text-zinc-100 last:font-bold">
-                  &gt; {log}
-                </div>
-              ))}
+              {questHistory.map((log, index) => {
+                const isLast = index === questHistory.length - 1;
+                let colorClass = 'text-zinc-400';
+                if (log.type === 'light') {
+                  colorClass = isLast ? 'text-emerald-300 font-bold' : 'text-emerald-500/90';
+                } else if (log.type === 'dark') {
+                  colorClass = isLast ? 'text-rose-300 font-bold' : 'text-rose-500/90';
+                } else if (isLast) {
+                  colorClass = 'text-zinc-100 font-bold';
+                }
+                return (
+                  <div key={index} className={`text-xs leading-relaxed font-mono border-b border-zinc-900 pb-1.5 last:border-0 ${colorClass}`}>
+                    &gt; {log.text}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
