@@ -1,35 +1,110 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07070a;
-  --foreground: #ededed;
+  --background: #050508;
+  --foreground: #f8fafc;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-outfit), sans-serif;
-  --font-display: var(--font-syne), sans-serif;
+  --font-sans: var(--font-press-start), var(--font-outfit), sans-serif;
+  --font-display: var(--font-press-start), var(--font-syne), sans-serif;
+  --font-press: var(--font-press-start), monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-press), monospace;
+  image-rendering: pixelated;
 }
 
 /* Custom scrollbars for logs and panels */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+  height: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
+  background: #020204;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 9999px;
+  background: #1e1e2f;
+  border: 1px solid #33334d;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #33334d;
+}
+
+/* Retro CRT scanlines overlay */
+.crt-scanlines {
+  position: relative;
+  overflow: hidden;
+}
+.crt-scanlines::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+  background-size: 100% 4px;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* Pixel double borders */
+.pixel-border-emerald {
+  border: 4px double #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2), inset 0 0 10px rgba(16, 185, 129, 0.1);
+}
+.pixel-border-rose {
+  border: 4px double #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2), inset 0 0 10px rgba(239, 68, 68, 0.1);
+}
+.pixel-border-amber {
+  border: 4px double #eab308;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.2), inset 0 0 10px rgba(234, 179, 8, 0.1);
+}
+.pixel-border-zinc {
+  border: 4px double #27272a;
+}
+.pixel-border-white {
+  border: 4px double #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+}
+
+/* Neon retro glows */
+.pixel-glow-emerald {
+  text-shadow: 0 0 4px rgba(16, 185, 129, 0.6), 0 0 8px rgba(16, 185, 129, 0.4);
+}
+.pixel-glow-rose {
+  text-shadow: 0 0 4px rgba(239, 68, 68, 0.6), 0 0 8px rgba(239, 68, 68, 0.4);
+}
+.pixel-glow-sky {
+  text-shadow: 0 0 4px rgba(56, 189, 248, 0.6), 0 0 8px rgba(56, 189, 248, 0.4);
+}
+.pixel-glow-yellow {
+  text-shadow: 0 0 4px rgba(234, 179, 8, 0.6), 0 0 8px rgba(234, 179, 8, 0.4);
+}
+.pixel-glow-white {
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.6), 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Custom retro block tickers */
+.stat-tick {
+  width: 8px;
+  height: 12px;
+  background-color: currentColor;
+  margin-right: 2px;
+  display: inline-block;
+}
+.stat-tick-empty {
+  width: 8px;
+  height: 12px;
+  background-color: #0c0c12;
+  border: 1px solid #1e1e2f;
+  margin-right: 2px;
+  display: inline-block;
 }
 

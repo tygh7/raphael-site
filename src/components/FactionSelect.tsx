@@ -12,10 +12,8 @@ const getSpecialTypeForShip = (defId: string): 'beam' | 'shield' => {
 };
 
 const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
-  // Light side: x_wing, delta_7 -> dash; falcon, jedi_interceptor -> multiplier
   if (defId === 'x_wing' || defId === 'delta_7') return 'dash';
   if (defId === 'falcon' || defId === 'jedi_interceptor') return 'multiplier';
-  // Dark side: tie_fighter, tie_silencer -> dash; tie_vader, tie_n2, solar_sailer -> multiplier
   if (defId === 'tie_fighter' || defId === 'tie_silencer') return 'dash';
   return 'multiplier';
 };
@@ -30,21 +28,18 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   const [pilotName, setPilotName] = useState<string>('');
   const [isNameValidated, setIsNameValidated] = useState<boolean>(false);
   
-  // Rotating ship canvas variables
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotateAngle = useRef(0);
 
   const activeShips = selectedFaction === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
   const currentShip = activeShips.find(s => s.id === selectedShipId) || activeShips[0];
 
-  // Set default ship when faction changes
   useEffect(() => {
     if (selectedFaction) {
       setSelectedShipId(selectedFaction === 'light' ? 'x_wing' : 'tie_fighter');
     }
   }, [selectedFaction]);
 
-  // Handle ship preview rotation animation
   useEffect(() => {
     let animationId: number;
 
@@ -57,42 +52,42 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Draw spinning ship
-      ctx.fillStyle = '#09090d';
+      ctx.fillStyle = '#050508';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw faint background grid
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < canvas.width; i += 20) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 2;
+      const gridSize = 16;
+      for (let i = 0; i < canvas.width; i += gridSize) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, canvas.height);
         ctx.stroke();
+      }
+      for (let i = 0; i < canvas.height; i += gridSize) {
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(canvas.width, i);
         ctx.stroke();
       }
 
-      // Draw stars crawling in background
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      const starOffset = (Date.now() / 50) % canvas.width;
-      ctx.fillRect((canvas.width - starOffset) % canvas.width, 40, 2, 2);
-      ctx.fillRect((canvas.width * 1.5 - starOffset) % canvas.width, 140, 1.5, 1.5);
-      ctx.fillRect((canvas.width * 0.8 - starOffset) % canvas.width, 220, 2.5, 2.5);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      const starOffset = (Date.now() / 40) % canvas.width;
+      ctx.fillRect((canvas.width - starOffset) % canvas.width, 30, 2, 2);
+      ctx.fillRect((canvas.width * 1.4 - starOffset) % canvas.width, 110, 2, 2);
+      ctx.fillRect((canvas.width * 0.7 - starOffset) % canvas.width, 140, 2, 2);
 
       rotateAngle.current += 0.015;
       drawPixelShip(
         ctx,
         canvas.width / 2,
         canvas.height / 2,
-        60, // size
+        60,
         rotateAngle.current,
         currentShip.id,
         currentShip.faction,
         currentShip.color,
-        true // moving engine glow
+        true
       );
 
       animationId = requestAnimationFrame(animatePreview);
@@ -107,40 +102,44 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
 
   const handleLaunch = () => {
     if (selectedFaction && selectedShipId) {
-      const defaultName = selectedFaction === 'light' ? 'Rogue Leader' : 'Sith Commander';
-      onLaunch(selectedFaction, selectedShipId, pilotName.trim() || defaultName);
+      const defaultName = selectedFaction === 'light' ? 'ROGUE LEADER' : 'SITH LORD';
+      onLaunch(selectedFaction, selectedShipId, pilotName.trim().toUpperCase() || defaultName);
     }
   };
 
-  // Stats bar helper
-  const renderStatBar = (label: string, value: number, max: number, barColor: string) => {
-    const percentage = (value / max) * 100;
+  const renderStatBar = (label: string, value: number, max: number, tickColorClass: string) => {
+    const totalTicks = 8;
+    const activeTicks = Math.min(totalTicks, Math.max(1, Math.round((value / max) * totalTicks)));
+    
     return (
-      <div className="flex flex-col gap-1 w-full text-xs font-mono">
+      <div className="flex flex-col gap-1 w-full text-[9px] font-press tracking-wider">
         <div className="flex justify-between text-zinc-400">
           <span>{label}</span>
           <span className="text-white font-bold">{value}</span>
         </div>
-        <div className="w-full h-2 bg-zinc-950 border border-zinc-850 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${barColor} transition-all duration-500`}
-            style={{ width: `${percentage}%` }}
-          />
+        <div className="flex mt-1">
+          {Array.from({ length: totalTicks }).map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-3 w-5 mr-1 border border-black ${
+                idx < activeTicks ? tickColorClass : 'bg-[#0a0a0f] border-zinc-800'
+              }`}
+            />
+          ))}
         </div>
       </div>
     );
   };
 
   if (!selectedFaction) {
-    // Faction Selection Screen
     return (
-      <div className="w-full max-w-[1000px] min-h-[500px] flex flex-col items-center justify-center gap-10 p-6 md:p-8 rounded-3xl border border-zinc-800 bg-[#07070a]/90 backdrop-blur-xl shadow-2xl select-none animate-in fade-in zoom-in-95 duration-300">
-        <div className="text-center flex flex-col gap-2">
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-widest text-white font-display uppercase">
-            CHOOSE YOUR ALLEGIANCE
+      <div className="w-full max-w-[1000px] min-h-[500px] flex flex-col items-center justify-center gap-10 p-6 md:p-8 rounded-none pixel-border-zinc bg-[#050508]/95 backdrop-blur-md shadow-2xl select-none animate-in fade-in zoom-in-95 duration-300 crt-scanlines">
+        <div className="text-center flex flex-col gap-3">
+          <h2 className="text-lg md:text-2xl font-extrabold tracking-widest text-white font-press uppercase pixel-glow-white">
+            SELECT ALLEGIANCE
           </h2>
-          <p className="text-xs text-zinc-500 tracking-widest font-mono uppercase">
-            The galaxy is divided. Select your faction to command your starfighter.
+          <p className="text-[10px] text-zinc-500 tracking-wider font-press leading-relaxed max-w-xl">
+            THE GALAXY IS SPLIT. CHOOSE A SIDE TO COMMENCE FLEET DOGFIGHTS.
           </p>
         </div>
 
@@ -148,43 +147,41 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
           {/* Light Side Card */}
           <div
             onClick={() => setSelectedFaction('light')}
-            className="group relative flex flex-col items-center justify-between p-8 rounded-2xl border border-emerald-950 hover:border-emerald-500 bg-[#0a0f0d]/50 hover:bg-emerald-950/20 text-center cursor-pointer transition-all duration-300 hover:scale-[1.03] shadow-[0_0_20px_rgba(16,185,129,0.02)] hover:shadow-[0_0_35px_rgba(16,185,129,0.15)]"
+            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-emerald hover:border-emerald-400 bg-[#060c08]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
           >
-            {/* Rebel Symbol outline watermark */}
             <div className="absolute inset-0 flex items-center justify-center opacity-5 group-hover:opacity-10 pointer-events-none transition-opacity">
               <svg viewBox="0 0 100 100" className="w-40 h-40 fill-emerald-500">
                 <path d="M50 0 C55 25 75 35 100 45 C80 50 65 65 60 100 C50 75 30 65 0 55 C20 50 35 35 50 0 Z" />
               </svg>
             </div>
 
-            <div className="flex flex-col items-center gap-4 z-10">
-              <span className="w-16 h-16 rounded-full bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
+            <div className="flex flex-col items-center gap-6 z-10">
+              <span className="w-16 h-16 rounded-none bg-emerald-950/40 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
                 <Shield className="w-8 h-8" />
               </span>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-xl font-bold tracking-widest text-emerald-400 font-display uppercase group-hover:text-emerald-300">
-                  THE LIGHT SIDE
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-bold tracking-widest text-emerald-400 font-press uppercase group-hover:text-emerald-300 pixel-glow-emerald">
+                  REBEL ALLIANCE
                 </h3>
-                <span className="text-[10px] font-bold text-zinc-500 font-mono tracking-widest uppercase">
-                  Rebel Alliance & Jedi Order
+                <span className="text-[9px] font-bold text-zinc-500 tracking-wider uppercase font-press">
+                  THE LIGHT SIDE
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mt-2">
-                "May the Force be with you." Defend hope and restore peace in the galaxy. Pilot agile fighters equipped with shielding and cooperative AI wings.
+              <p className="text-[9px] leading-relaxed text-zinc-400 max-w-xs mt-2 font-press">
+                Agile starfighters with shields and tactical wingmen. Defend the Galaxy.
               </p>
             </div>
             
-            <button className="mt-8 py-2.5 px-6 rounded-xl text-xs font-bold bg-emerald-600 group-hover:bg-emerald-500 text-white transition-all shadow-md">
-              COMMAND THE LIGHT
+            <button className="mt-8 py-3 px-6 rounded-none text-[10px] font-press font-bold bg-emerald-700 border-2 border-emerald-400 text-white transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)] group-hover:bg-emerald-600">
+              JOIN REBELS
             </button>
           </div>
 
           {/* Dark Side Card */}
           <div
             onClick={() => setSelectedFaction('dark')}
-            className="group relative flex flex-col items-center justify-between p-8 rounded-2xl border border-rose-950/40 hover:border-rose-500 bg-[#0f0a0b]/50 hover:bg-rose-950/20 text-center cursor-pointer transition-all duration-300 hover:scale-[1.03] shadow-[0_0_20px_rgba(239,68,68,0.02)] hover:shadow-[0_0_35px_rgba(239,68,68,0.15)]"
+            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-rose hover:border-rose-400 bg-[#0c0608]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
           >
-            {/* Empire symbol watermark */}
             <div className="absolute inset-0 flex items-center justify-center opacity-5 group-hover:opacity-10 pointer-events-none transition-opacity">
               <svg viewBox="0 0 100 100" className="w-40 h-40 fill-rose-500">
                 <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -192,25 +189,25 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               </svg>
             </div>
 
-            <div className="flex flex-col items-center gap-4 z-10">
-              <span className="w-16 h-16 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.1)] group-hover:shadow-[0_0_25px_rgba(239,68,68,0.3)] transition-all">
+            <div className="flex flex-col items-center gap-6 z-10">
+              <span className="w-16 h-16 rounded-none bg-rose-950/40 border-2 border-rose-500/50 flex items-center justify-center text-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.1)] group-hover:shadow-[0_0_25px_rgba(239,68,68,0.3)] transition-all">
                 <Swords className="w-8 h-8" />
               </span>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-xl font-bold tracking-widest text-rose-500 font-display uppercase group-hover:text-rose-400">
-                  THE DARK SIDE
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-bold tracking-widest text-rose-500 font-press uppercase group-hover:text-rose-400 pixel-glow-rose">
+                  GALACTIC EMPIRE
                 </h3>
-                <span className="text-[10px] font-bold text-zinc-500 font-mono tracking-widest uppercase">
-                  Galactic Empire & Sith Order
+                <span className="text-[9px] font-bold text-zinc-500 tracking-wider uppercase font-press">
+                  THE DARK SIDE
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mt-2">
-                "You underestimate the power of the Dark Side." Strike with raw power and crush all resistance. Command lethal, unshielded but heavily powered swarm fighters.
+              <p className="text-[9px] leading-relaxed text-zinc-400 max-w-xs mt-2 font-press">
+                High-power firepower interceptors. Crush the resistance with speed.
               </p>
             </div>
 
-            <button className="mt-8 py-2.5 px-6 rounded-xl text-xs font-bold bg-rose-600 group-hover:bg-rose-500 text-white transition-all shadow-md">
-              COMMAND THE DARK
+            <button className="mt-8 py-3 px-6 rounded-none text-[10px] font-press font-bold bg-rose-700 border-2 border-rose-400 text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.3)] group-hover:bg-rose-600">
+              JOIN EMPIRE
             </button>
           </div>
         </div>
@@ -221,122 +218,124 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   if (selectedFaction && !isNameValidated) {
     const handleNameSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      const defaultName = selectedFaction === 'light' ? 'Rogue Leader' : 'Sith Commander';
-      const finalName = pilotName.trim() || defaultName;
+      const defaultName = selectedFaction === 'light' ? 'ROGUE LEADER' : 'SITH LORD';
+      const finalName = pilotName.trim().toUpperCase() || defaultName;
       setPilotName(finalName);
       setIsNameValidated(true);
     };
 
     const isLight = selectedFaction === 'light';
     const accentColor = isLight ? 'text-emerald-400' : 'text-rose-500';
-    const accentBorder = isLight ? 'focus:border-emerald-500' : 'focus:border-rose-500';
-    const accentBg = isLight ? 'bg-emerald-950/20' : 'bg-rose-950/20';
+    const accentBorder = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
+    const glowClass = isLight ? 'pixel-glow-emerald' : 'pixel-glow-rose';
+    const accentBg = isLight ? 'bg-emerald-950/10' : 'bg-rose-950/10';
     const accentBtn = isLight 
-      ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_15px_rgba(16,185,129,0.25)]' 
-      : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_15px_rgba(239,68,68,0.25)]';
+      ? 'bg-emerald-700 border-2 border-emerald-400 hover:bg-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+      : 'bg-rose-700 border-2 border-rose-400 hover:bg-rose-600 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
 
     return (
-      <div className="w-full max-w-[500px] flex flex-col gap-6 p-6 md:p-8 rounded-3xl border border-zinc-800 bg-[#07070a]/90 backdrop-blur-xl shadow-2xl animate-in zoom-in-95 duration-300">
-        {/* Back to faction */}
+      <div className={`w-full max-w-[500px] flex flex-col gap-6 p-6 md:p-8 rounded-none ${accentBorder} bg-[#050508]/95 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-300 crt-scanlines`}>
         <button
           onClick={() => {
             setSelectedFaction(null);
             setIsNameValidated(false);
           }}
-          className="w-fit flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-[10px] font-bold tracking-wider text-zinc-400 hover:text-white font-mono uppercase transition-colors"
+          className="w-fit flex items-center gap-1.5 px-3 py-2 rounded-none border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-[9px] font-bold text-zinc-400 hover:text-white font-press transition-colors"
         >
-          <ChevronLeft className="w-4 h-4" /> CHANGE SIDE
+          <ChevronLeft className="w-3.5 h-3.5" /> BACK
         </button>
 
-        <div className="text-center flex flex-col gap-2 border-b border-zinc-850 pb-4">
-          <h2 className="text-xl md:text-2xl font-extrabold tracking-widest text-white font-display uppercase">
+        <div className="text-center flex flex-col gap-3 border-b border-zinc-800 pb-4">
+          <h2 className="text-md md:text-lg font-extrabold tracking-widest text-white font-press uppercase pixel-glow-white">
             CALLSIGN REGISTRATION
           </h2>
-          <span className={`text-[10px] font-bold uppercase tracking-widest font-mono ${accentColor}`}>
-            COMMISSIONING FOR THE {isLight ? 'REBEL ALLIANCE' : 'GALACTIC EMPIRE'}
+          <span className={`text-[9px] font-bold uppercase tracking-wider font-press ${accentColor} ${glowClass}`}>
+            PILOT OF THE {isLight ? 'REBEL FLEET' : 'IMPERIAL SQUAD'}
           </span>
         </div>
 
-        <form onSubmit={handleNameSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <label className="text-zinc-500 font-mono font-bold text-[9px] uppercase tracking-wider">
-              Enter your Pilot Callsign / Name
+        <form onSubmit={handleNameSubmit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <label className="text-zinc-500 font-press font-bold text-[8px] uppercase tracking-wider">
+              ENTER PILOT CALLSIGN
             </label>
             <input
               type="text"
               autoFocus
               maxLength={15}
-              placeholder={isLight ? "e.g. Luke Skywalker" : "e.g. Darth Vader"}
+              placeholder={isLight ? "SKYWALKER" : "VADER"}
               value={pilotName}
-              onChange={(e) => setPilotName(e.target.value)}
-              className={`w-full px-4 py-3 bg-zinc-950 border border-zinc-800/80 rounded-xl text-xs font-mono text-white placeholder-zinc-700 outline-none transition-all ${accentBorder} ${accentBg} focus:shadow-[0_0_15px_rgba(255,255,255,0.02)]`}
+              onChange={(e) => setPilotName(e.target.value.toUpperCase())}
+              className={`w-full px-4 py-3 bg-[#0a0a0f] border-2 border-zinc-800 rounded-none text-xs font-press text-white placeholder-zinc-800 outline-none focus:border-zinc-500 transition-all ${accentBg}`}
             />
-            <p className="text-[9.5px] text-zinc-500 leading-normal font-sans italic">
-              *Leave empty for default callsign: <span className="font-bold text-zinc-400 font-mono">{isLight ? 'Rogue Leader' : 'Sith Commander'}</span>
+            <p className="text-[8px] text-zinc-600 leading-relaxed font-press uppercase">
+              *DEFAULT CALLSIGN: <span className="font-bold text-zinc-400">{isLight ? 'ROGUE LEADER' : 'SITH LORD'}</span>
             </p>
           </div>
 
           <button
             type="submit"
-            className={`w-full py-3.5 px-6 rounded-xl font-mono font-bold text-xs text-white shadow-lg transition-all flex items-center justify-center gap-2 ${accentBtn}`}
+            className={`w-full py-4 px-6 rounded-none font-press font-bold text-[10px] text-white shadow-lg transition-all flex items-center justify-center gap-2 ${accentBtn}`}
           >
-            <Play className="w-4 h-4 fill-current" /> REGISTER CALLSIGN
+            <Play className="w-4 h-4 fill-current" /> REGISTER
           </button>
         </form>
       </div>
     );
   }
 
-  // Ship Selection Screen
+  const isLight = selectedFaction === 'light';
+  const accentBorderClass = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
+  const glowClass = isLight ? 'pixel-glow-emerald' : 'pixel-glow-rose';
+
   return (
-    <div className="w-full max-w-[1050px] flex flex-col gap-6 p-6 md:p-8 rounded-3xl border border-zinc-800 bg-[#07070a]/90 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-      {/* Back to faction */}
+    <div className={`w-full max-w-[1050px] flex flex-col gap-6 p-6 md:p-8 rounded-none ${accentBorderClass} bg-[#050508]/95 backdrop-blur-md shadow-2xl animate-in slide-in-from-bottom-4 duration-300 crt-scanlines`}>
       <button
         onClick={() => {
           setSelectedFaction(null);
           setIsNameValidated(false);
         }}
-        className="w-fit flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-[10px] font-bold tracking-wider text-zinc-400 hover:text-white font-mono uppercase transition-colors"
+        className="w-fit flex items-center gap-1.5 px-3 py-2 rounded-none border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-[9px] font-bold text-zinc-400 hover:text-white font-press transition-colors"
       >
-        <ChevronLeft className="w-4 h-4" /> CHANGE SIDE
+        <ChevronLeft className="w-3.5 h-3.5" /> CHANGE SIDE
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Starship List */}
         <div className="lg:col-span-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-bold tracking-wider text-white uppercase font-sans">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-md font-bold tracking-wider text-white uppercase font-press pixel-glow-white">
               SELECT YOUR FIGHTER
             </h2>
-            <span className={`text-[10px] font-bold uppercase tracking-widest font-mono ${
+            <span className={`text-[9px] font-bold uppercase tracking-wider font-press ${
               selectedFaction === 'light' ? 'text-emerald-400' : 'text-rose-500'
-            }`}>
-              Available {selectedFaction === 'light' ? 'Alliance' : 'Imperial'} Starships
+            } ${glowClass}`}>
+              AVAILABLE {selectedFaction === 'light' ? 'ALLIANCE' : 'IMPERIAL'} HANGARS
             </span>
           </div>
 
-          <div className="flex flex-col gap-2.5 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+          <div className="flex flex-col gap-3.5 max-h-[380px] overflow-y-auto pr-2 scrollbar-thin">
             {activeShips.map((ship) => {
               const active = ship.id === selectedShipId;
-              const accentBorder = selectedFaction === 'light' ? 'hover:border-emerald-500/50 border-emerald-950' : 'hover:border-rose-500/50 border-rose-950/40';
-              const activeBorder = selectedFaction === 'light' ? 'border-emerald-500 bg-emerald-950/10' : 'border-rose-500 bg-rose-950/10';
+              const accentBorder = selectedFaction === 'light' ? 'hover:border-emerald-500/50 border-zinc-800' : 'hover:border-rose-500/50 border-zinc-800';
+              const activeBorder = selectedFaction === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
               
               return (
                 <div
                   key={ship.id}
                   onClick={() => setSelectedShipId(ship.id)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
-                    active ? activeBorder : `bg-zinc-950/50 ${accentBorder}`
+                  className={`p-4 rounded-none border-2 cursor-pointer transition-all flex justify-between items-center ${
+                    active ? activeBorder : `bg-[#0a0a0f]/60 ${accentBorder}`
                   }`}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold text-xs text-white uppercase tracking-wider">{ship.name}</span>
-                    <span className="text-[10px] text-zinc-500 leading-snug line-clamp-1 max-w-[280px]">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold text-[10px] text-white uppercase tracking-wider font-press">{ship.name}</span>
+                    <span className="text-[8px] text-zinc-500 leading-snug line-clamp-1 max-w-[280px] font-press uppercase">
                       {ship.description}
                     </span>
                   </div>
                   <ChevronRight className={`w-4 h-4 transition-transform ${
-                    active ? (selectedFaction === 'light' ? 'text-emerald-400 translate-x-1' : 'text-rose-500 translate-x-1') : 'text-zinc-600'
+                    active ? (selectedFaction === 'light' ? 'text-emerald-400 translate-x-1' : 'text-rose-500 translate-x-1') : 'text-zinc-700'
                   }`} />
                 </div>
               );
@@ -346,22 +345,21 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
 
         {/* Right: Starship Detail & Preview */}
         {currentShip && (
-          <div className="lg:col-span-6 border border-zinc-800 bg-[#09090d]/80 rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
-            {/* Title / Description */}
-            <div className="flex justify-between items-start border-b border-zinc-850 pb-3">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] font-bold text-zinc-500 font-mono uppercase tracking-wider">Starfighter Spec</span>
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">{currentShip.name}</h3>
+          <div className={`lg:col-span-6 border-2 border-zinc-800 bg-[#08080c]/90 rounded-none p-5 flex flex-col gap-5 shadow-xl`}>
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[8px] font-bold text-zinc-500 font-press uppercase tracking-wider">STARFIGHTER SPEC</span>
+                <h3 className="text-[11px] font-bold text-white uppercase tracking-wider font-press">{currentShip.name}</h3>
               </div>
-              <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
-                selectedFaction === 'light' ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400' : 'border-rose-500/30 bg-rose-950/20 text-rose-500'
+              <span className={`px-2 py-1 rounded-none text-[8px] font-bold uppercase tracking-wider border-2 ${
+                selectedFaction === 'light' ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-400' : 'border-rose-500/40 bg-rose-950/20 text-rose-500'
               }`}>
-                {selectedFaction === 'light' ? 'Light Side' : 'Dark Side'}
+                {selectedFaction === 'light' ? 'LIGHT SIDE' : 'DARK SIDE'}
               </span>
             </div>
 
             {/* Model Preview Canvas */}
-            <div className="w-full h-[160px] border border-zinc-850 bg-zinc-950 rounded-xl overflow-hidden shadow-inner flex justify-center items-center">
+            <div className="w-full h-[160px] border-2 border-zinc-800 bg-[#050508] rounded-none overflow-hidden shadow-inner flex justify-center items-center">
               <canvas
                 ref={previewCanvasRef}
                 width={260}
@@ -370,65 +368,64 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               />
             </div>
 
-            <p className="text-[11px] text-zinc-400 leading-relaxed font-sans italic">
+            <p className="text-[9px] text-zinc-400 leading-relaxed font-press uppercase">
               "{currentShip.description}"
             </p>
 
             {/* Attributes sliders */}
-            <div className="flex flex-col gap-3 border-t border-zinc-850 pt-3">
-              {renderStatBar('Engine Speed', currentShip.stats.speed, 8, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
-              {renderStatBar('Laser Power', currentShip.stats.power, 40, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
-              {/* Rate represents cooldown, lower is better. We invert it for the slider: Max cooldown 500ms, Min 100ms */}
-              {renderStatBar('Fire Frequency', Math.round(10000 / currentShip.stats.rate), 100, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
-              {renderStatBar('Laser Range', currentShip.stats.range, 1000, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
-              {renderStatBar('Defensive Shield', currentShip.stats.shield, 300, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-600')}
+            <div className="flex flex-col gap-3.5 border-t border-zinc-800 pt-4">
+              {renderStatBar('ENGINE SPEED', currentShip.stats.speed, 8, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('LASER POWER', currentShip.stats.power, 40, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('FIRE FREQUENCY', Math.round(10000 / currentShip.stats.rate), 100, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('LASER RANGE', currentShip.stats.range, 1000, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('DEFENSIVE SHIELD', currentShip.stats.shield, 300, selectedFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
             </div>
 
             {/* Special Power Info */}
-            <div className="border-t border-zinc-850 pt-3 flex flex-col gap-2.5 text-[9px] font-mono">
-              <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 font-bold uppercase tracking-wider">Dash / Boost (R / R1)</span>
+            <div className="border-t border-zinc-800 pt-4 flex flex-col gap-3.5 text-[8px] font-press">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">BOOST SPEED (R / R1)</span>
                 {getBoostTypeForShip(currentShip.id) === 'dash' ? (
-                  <div className="flex flex-col gap-0.5 border border-purple-950/60 bg-purple-950/10 p-2 rounded-xl text-purple-400">
-                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🚀 Dagger Dash</span>
-                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                      Triggers a sudden 320px micro-jump teleport dash in the direction of travel to evade enemy fire. Cooldown: 5s.
+                  <div className="flex flex-col gap-1 border border-purple-900 bg-purple-950/10 p-3 rounded-none text-purple-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-1.5">🚀 DAGGER DASH</span>
+                    <span className="text-zinc-400 leading-relaxed text-[8px]">
+                      TELEPORTS 320PX FORWARD TO DODGE INCOMING WEAPONS. COOLDOWN: 5S.
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-0.5 border border-amber-950/60 bg-amber-950/10 p-2 rounded-xl text-amber-400">
-                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🔥 Overdrive Boost</span>
-                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                      Increases engines speed output by +200% for 6 seconds, leaving an energy trail behind. Cooldown: 5s.
+                  <div className="flex flex-col gap-1 border border-amber-900 bg-amber-950/10 p-3 rounded-none text-amber-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-1.5">🔥 OVERDRIVE BOOST</span>
+                    <span className="text-zinc-400 leading-relaxed text-[8px]">
+                      INCREASES ENGINES SPEED BY +200% FOR 6 SECONDS. COOLDOWN: 5S.
                     </span>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 font-bold uppercase tracking-wider">Bomb (E / L2)</span>
-                <div className="flex flex-col gap-0.5 border border-violet-950/60 bg-violet-950/10 p-2 rounded-xl text-violet-400">
-                  <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">💣 Space Bomb</span>
-                  <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                    Fires a massive gravity bomb that detonates in a wide area (350px radius), clearing enemy fighters and asteroids. Cooldown: 5s.
+              <div className="flex flex-col gap-1.5">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">TACTICAL BOMB (E / L2)</span>
+                <div className="flex flex-col gap-1 border border-violet-900 bg-violet-950/10 p-3 rounded-none text-violet-400">
+                  <span className="font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-1.5">💣 SPACE BOMB</span>
+                  <span className="text-zinc-400 leading-relaxed text-[8px]">
+                    FIRES GRAVITY DETONATOR CLEARING A 350PX RADIUS AREA. COOLDOWN: 5S.
                   </span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 font-bold uppercase tracking-wider">Shield / Laser Beam (W / R2)</span>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-zinc-500 font-bold uppercase tracking-wider">DEFENSE / PIERCING BEAM (W / R2)</span>
                 {getSpecialTypeForShip(currentShip.id) === 'beam' ? (
-                  <div className="flex flex-col gap-0.5 border border-cyan-950/60 bg-cyan-950/10 p-2 rounded-xl text-cyan-400">
-                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">⚡ Super Piercing Beam</span>
-                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                      Fires a colossal piercing energy beam across the entire map, dealing 1,000 damage. Cooldown: 7s.
+                  <div className="flex flex-col gap-1 border border-cyan-900 bg-cyan-950/10 p-3 rounded-none text-cyan-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-1.5">⚡ PIERCING BEAM</span>
+                    <span className="text-zinc-400 leading-relaxed text-[8px]">
+                      FIRES AN INFINITE ENERGY BEAM DEALING 1000 DAMAGE. COOLDOWN: 7S.
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-0.5 border border-blue-950/60 bg-blue-950/10 p-2 rounded-xl text-blue-400">
-                    <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5">🛡️ Deflector Shield</span>
-                    <span className="text-zinc-400 font-sans leading-relaxed text-[9.5px]">
-                      Activates a reflective energy bubble for 5 seconds that bounces enemy lasers back. Cooldown: 7s.
+                  <div className="flex flex-col gap-1 border border-blue-900 bg-blue-950/10 p-3 rounded-none text-blue-400">
+                    <span className="font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-1.5">🛡️ DEFLECTOR SHIELD</span>
+                    <span className="text-zinc-400 leading-relaxed text-[8px]">
+                      GENERATES REFLECTIVE ENERGY SHIELD FOR 5 SECONDS. COOLDOWN: 7S.
                     </span>
                   </div>
                 )}
@@ -438,10 +435,10 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
             {/* Launch Button */}
             <button
               onClick={handleLaunch}
-              className={`w-full mt-2 py-3.5 px-6 rounded-xl font-bold text-xs text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
+              className={`w-full mt-2 py-4 px-6 rounded-none font-press font-bold text-[10px] text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
                 selectedFaction === 'light'
-                  ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
-                  : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
+                  ? 'bg-emerald-700 border-2 border-emerald-400 hover:bg-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                  : 'bg-rose-700 border-2 border-rose-400 hover:bg-rose-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
               <Play className="w-4 h-4 fill-current" /> LAUNCH IN HYPERSPACE
