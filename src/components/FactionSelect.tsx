@@ -21,12 +21,14 @@ const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
 };
 
 interface FactionSelectProps {
-  onLaunch: (faction: Faction, shipId: string) => void;
+  onLaunch: (faction: Faction, shipId: string, playerName: string) => void;
 }
 
 export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null);
   const [selectedShipId, setSelectedShipId] = useState<string>('');
+  const [pilotName, setPilotName] = useState<string>('');
+  const [isNameValidated, setIsNameValidated] = useState<boolean>(false);
   
   // Rotating ship canvas variables
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -105,7 +107,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
 
   const handleLaunch = () => {
     if (selectedFaction && selectedShipId) {
-      onLaunch(selectedFaction, selectedShipId);
+      const defaultName = selectedFaction === 'light' ? 'Rogue Leader' : 'Sith Commander';
+      onLaunch(selectedFaction, selectedShipId, pilotName.trim() || defaultName);
     }
   };
 
@@ -215,12 +218,84 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
     );
   }
 
+  if (selectedFaction && !isNameValidated) {
+    const handleNameSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      const defaultName = selectedFaction === 'light' ? 'Rogue Leader' : 'Sith Commander';
+      const finalName = pilotName.trim() || defaultName;
+      setPilotName(finalName);
+      setIsNameValidated(true);
+    };
+
+    const isLight = selectedFaction === 'light';
+    const accentColor = isLight ? 'text-emerald-400' : 'text-rose-500';
+    const accentBorder = isLight ? 'focus:border-emerald-500' : 'focus:border-rose-500';
+    const accentBg = isLight ? 'bg-emerald-950/20' : 'bg-rose-950/20';
+    const accentBtn = isLight 
+      ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_15px_rgba(16,185,129,0.25)]' 
+      : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_15px_rgba(239,68,68,0.25)]';
+
+    return (
+      <div className="w-full max-w-[500px] flex flex-col gap-6 p-6 md:p-8 rounded-3xl border border-zinc-800 bg-[#07070a]/90 backdrop-blur-xl shadow-2xl animate-in zoom-in-95 duration-300">
+        {/* Back to faction */}
+        <button
+          onClick={() => {
+            setSelectedFaction(null);
+            setIsNameValidated(false);
+          }}
+          className="w-fit flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-[10px] font-bold tracking-wider text-zinc-400 hover:text-white font-mono uppercase transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" /> CHANGE SIDE
+        </button>
+
+        <div className="text-center flex flex-col gap-2 border-b border-zinc-850 pb-4">
+          <h2 className="text-xl md:text-2xl font-extrabold tracking-widest text-white font-display uppercase">
+            CALLSIGN REGISTRATION
+          </h2>
+          <span className={`text-[10px] font-bold uppercase tracking-widest font-mono ${accentColor}`}>
+            COMMISSIONING FOR THE {isLight ? 'REBEL ALLIANCE' : 'GALACTIC EMPIRE'}
+          </span>
+        </div>
+
+        <form onSubmit={handleNameSubmit} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <label className="text-zinc-500 font-mono font-bold text-[9px] uppercase tracking-wider">
+              Enter your Pilot Callsign / Name
+            </label>
+            <input
+              type="text"
+              autoFocus
+              maxLength={15}
+              placeholder={isLight ? "e.g. Luke Skywalker" : "e.g. Darth Vader"}
+              value={pilotName}
+              onChange={(e) => setPilotName(e.target.value)}
+              className={`w-full px-4 py-3 bg-zinc-950 border border-zinc-800/80 rounded-xl text-xs font-mono text-white placeholder-zinc-700 outline-none transition-all ${accentBorder} ${accentBg} focus:shadow-[0_0_15px_rgba(255,255,255,0.02)]`}
+            />
+            <p className="text-[9.5px] text-zinc-500 leading-normal font-sans italic">
+              *Leave empty for default callsign: <span className="font-bold text-zinc-400 font-mono">{isLight ? 'Rogue Leader' : 'Sith Commander'}</span>
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className={`w-full py-3.5 px-6 rounded-xl font-mono font-bold text-xs text-white shadow-lg transition-all flex items-center justify-center gap-2 ${accentBtn}`}
+          >
+            <Play className="w-4 h-4 fill-current" /> REGISTER CALLSIGN
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   // Ship Selection Screen
   return (
     <div className="w-full max-w-[1050px] flex flex-col gap-6 p-6 md:p-8 rounded-3xl border border-zinc-800 bg-[#07070a]/90 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
       {/* Back to faction */}
       <button
-        onClick={() => setSelectedFaction(null)}
+        onClick={() => {
+          setSelectedFaction(null);
+          setIsNameValidated(false);
+        }}
         className="w-fit flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-[10px] font-bold tracking-wider text-zinc-400 hover:text-white font-mono uppercase transition-colors"
       >
         <ChevronLeft className="w-4 h-4" /> CHANGE SIDE

@@ -9,6 +9,7 @@ interface SpaceCanvasProps {
   selectedShipId: string;
   onGameOver: (score: number, kills: number) => void;
   onExit: () => void;
+  playerName?: string;
 }
 
 const WORLD_SIZE = 8000;
@@ -73,7 +74,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   faction,
   selectedShipId,
   onGameOver,
-  onExit
+  onExit,
+  playerName = 'Rogue Leader'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapRef = useRef<HTMLCanvasElement | null>(null);
@@ -351,7 +353,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const player: SpaceShip = {
       id: 'player',
       defId: selectedShipId,
-      name: `Rogue Leader (You)`,
+      name: `${playerName} (You)`,
       faction: faction,
       x: px,
       y: py,
@@ -616,7 +618,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     if (state.playerShip) {
       state.playerShip.defId = respawnShipId;
-      state.playerShip.name = `Rogue Leader (You)`;
+      state.playerShip.name = `${playerName} (You)`;
       state.playerShip.color = playerDef.color;
       state.playerShip.stats = playerDef.stats;
       state.playerShip.hp = playerDef.stats.shield;
