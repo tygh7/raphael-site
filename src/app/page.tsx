@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Faction } from '../types/space';
+import { Faction, Difficulty } from '../types/space';
 import { FactionSelect } from '../components/FactionSelect';
 import { SpaceCanvas } from '../components/SpaceCanvas';
 import { SpaceRules } from '../components/SpaceRules';
@@ -12,7 +12,8 @@ export default function SpacePage() {
   const [gameMode, setGameState] = useState<'select' | 'battle'>('select');
   const [faction, setFaction] = useState<Faction | null>(null);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
-  const [playerName, setPlayerName] = useState<string>('Rogue Leader');
+  const [playerName, setPlayerName] = useState<string>('ROGUE LEADER');
+  const [difficulty, setDifficulty] = useState<Difficulty>('clone');
   
   // Game stats
   const [highScore, setHighScore] = useState<number>(0);
@@ -31,17 +32,23 @@ export default function SpacePage() {
   }, []);
 
   // Handle ship launch
-  const handleLaunch = (chosenFaction: Faction, shipId: string, name: string) => {
+  const handleLaunch = (chosenFaction: Faction, shipId: string, name: string, chosenDifficulty: Difficulty) => {
     setFaction(chosenFaction);
     setSelectedShipId(shipId);
     setPlayerName(name);
+    setDifficulty(chosenDifficulty);
     setGameState('battle');
 
     const shipName = shipId.replace('_', ' ').toUpperCase();
+    const diffLabel = chosenDifficulty === 'leila' ? 'LEILA (SUPER EASY)' 
+                     : chosenDifficulty === 'c3po' ? 'C3-PO (EASY)' 
+                     : chosenDifficulty === 'clone' ? 'CLONE WARS (MEDIUM)' 
+                     : 'JAR JAR BINKS (HARDEST)';
+
     setQuestHistory(prev => [
       ...prev,
       {
-        text: `🚀 Pilot ${name} launched in ${shipName} for the ${chosenFaction === 'light' ? 'Light' : 'Dark'} Side!`,
+        text: `🚀 PILOT ${name} LAUNCHED IN ${shipName} (${diffLabel}) FOR THE ${chosenFaction === 'light' ? 'LIGHT' : 'DARK'} SIDE!`,
         type: chosenFaction
       }
     ]);
@@ -137,6 +144,7 @@ export default function SpacePage() {
               <SpaceCanvas
                 faction={faction}
                 selectedShipId={selectedShipId}
+                difficulty={difficulty}
                 playerName={playerName}
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}

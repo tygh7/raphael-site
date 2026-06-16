@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Faction, SpaceShip, Laser, Particle, Asteroid, GameState } from '../types/space';
+import { Faction, Difficulty, SpaceShip, Laser, Particle, Asteroid, GameState } from '../types/space';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { LIGHT_SHIPS, DARK_SHIPS, getShipDefById } from '../utils/spaceShips';
 import { Shield, Skull, Award, User, RefreshCw, Gamepad2 } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Shield, Skull, Award, User, RefreshCw, Gamepad2 } from 'lucide-react';
 interface SpaceCanvasProps {
   faction: Faction;
   selectedShipId: string;
+  difficulty: Difficulty;
   onGameOver: (score: number, kills: number) => void;
   onExit: () => void;
   playerName?: string;
@@ -74,6 +75,7 @@ const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
 export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   faction,
   selectedShipId,
+  difficulty,
   onGameOver,
   onExit,
   playerName = 'Rogue Leader',
@@ -296,6 +298,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const leaderId = `ai_${fact}_leader_${leaderIndex}`;
     const shipId = isLeader ? leaderId : `ai_${fact}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
+    // Apply difficulty modifiers if the AI ship belongs to the OPPONENT faction
+    const stats = { ...def.stats };
+    if (fact !== faction) { // Opponent bot
+      if (difficulty === 'leila') {
+        stats.shield = Math.round(stats.shield * 0.45);
+        stats.speed = stats.speed * 0.5;
+        stats.power = Math.round(stats.power * 0.45);
+        stats.rate = stats.rate * 2.2;
+      } else if (difficulty === 'c3po') {
+        stats.shield = Math.round(stats.shield * 0.7);
+        stats.speed = stats.speed * 0.75;
+        stats.power = Math.round(stats.power * 0.7);
+        stats.rate = stats.rate * 1.4;
+      } else if (difficulty === 'jarjar') {
+        stats.shield = Math.round(stats.shield * 1.55);
+        stats.speed = stats.speed * 1.3;
+        stats.power = Math.round(stats.power * 1.40);
+        stats.rate = stats.rate * 0.65;
+      }
+    }
+
     return {
       id: shipId,
       defId: def.id,
@@ -306,11 +329,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       vx: 0,
       vy: 0,
       angle: fact === 'light' ? Math.PI / 2 : -Math.PI / 2,
-      hp: def.stats.shield,
-      maxHp: def.stats.shield,
+      hp: stats.shield,
+      maxHp: stats.shield,
       lastShotTime: 0,
       isPlayer: false,
-      stats: def.stats,
+      stats: stats,
       color: def.color,
       aiState: 'patrol',
       aiDecisionTimer: 0,
@@ -466,7 +489,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Trigger setup on mount
   useEffect(() => {
     initGame();
-  }, [faction]);
+  }, [faction, difficulty]);
 
   // Set keyboard / mouse listeners
   useEffect(() => {

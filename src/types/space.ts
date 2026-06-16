@@ -1,4 +1,5 @@
 export type Faction = 'light' | 'dark';
+export type Difficulty = 'leila' | 'c3po' | 'clone' | 'jarjar';
 
 export interface ShipStats {
   speed: number;        // Max speed (velocity cap)

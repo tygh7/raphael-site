@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Faction, ShipDef } from '../types/space';
+import { Faction, Difficulty, ShipDef } from '../types/space';
 import { LIGHT_SHIPS, DARK_SHIPS } from '../utils/spaceShips';
 import { drawPixelShip } from '../utils/shipRenderer';
 import { Shield, Zap, Swords, ChevronLeft, ChevronRight, Play } from 'lucide-react';
@@ -19,7 +19,7 @@ const getBoostTypeForShip = (defId: string): 'dash' | 'multiplier' => {
 };
 
 interface FactionSelectProps {
-  onLaunch: (faction: Faction, shipId: string, playerName: string) => void;
+  onLaunch: (faction: Faction, shipId: string, playerName: string, difficulty: Difficulty) => void;
 }
 
 export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
@@ -27,6 +27,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   const [selectedShipId, setSelectedShipId] = useState<string>('');
   const [pilotName, setPilotName] = useState<string>('');
   const [isNameValidated, setIsNameValidated] = useState<boolean>(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>('clone');
+  const [isDifficultyValidated, setIsDifficultyValidated] = useState<boolean>(false);
   
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotateAngle = useRef(0);
@@ -103,7 +105,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   const handleLaunch = () => {
     if (selectedFaction && selectedShipId) {
       const defaultName = selectedFaction === 'light' ? 'ROGUE LEADER' : 'SITH LORD';
-      onLaunch(selectedFaction, selectedShipId, pilotName.trim().toUpperCase() || defaultName);
+      onLaunch(selectedFaction, selectedShipId, pilotName.trim().toUpperCase() || defaultName, difficulty);
     }
   };
 
@@ -283,6 +285,99 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
       </div>
     );
   }
+  if (selectedFaction && isNameValidated && !isDifficultyValidated) {
+    const isLight = selectedFaction === 'light';
+    const accentColor = isLight ? 'text-emerald-400' : 'text-rose-500';
+    const accentBorder = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
+    const glowClass = isLight ? 'pixel-glow-emerald' : 'pixel-glow-rose';
+    const accentBg = isLight ? 'bg-emerald-950/10' : 'bg-rose-950/10';
+
+    const difficulties: { id: Difficulty; label: string; sub: string; desc: string; borderClass: string; textClass: string; bgClass: string }[] = [
+      {
+        id: 'leila',
+        label: 'LEILA SKYWALKER',
+        sub: 'SUPER EASY',
+        desc: 'WEAK OPPONENTS, SLOW FIRE AND REDUCED DAMAGE.',
+        borderClass: 'border-emerald-950 hover:border-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+        textClass: 'text-emerald-400',
+        bgClass: 'hover:bg-emerald-950/20 bg-[#060c08]/50'
+      },
+      {
+        id: 'c3po',
+        label: 'C3-PO',
+        sub: 'EASY',
+        desc: 'SUBDUED OPPONENTS, SLOWER ENEMY MANEUVERS.',
+        borderClass: 'border-sky-950 hover:border-sky-500 hover:shadow-[0_0_15px_rgba(56,189,248,0.15)]',
+        textClass: 'text-sky-400',
+        bgClass: 'hover:bg-sky-950/20 bg-[#060a0c]/50'
+      },
+      {
+        id: 'clone',
+        label: 'CLONE WARS',
+        sub: 'MEDIUM',
+        desc: 'STANDARD COMBAT CONDITIONS. EQUAL WAR BALANCE.',
+        borderClass: 'border-zinc-850 hover:border-zinc-500 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]',
+        textClass: 'text-zinc-300',
+        bgClass: 'hover:bg-zinc-900/20 bg-zinc-950/50'
+      },
+      {
+        id: 'jarjar',
+        label: 'JAR JAR BINKS',
+        sub: 'HARDEST',
+        desc: 'WARNING: EXTREMELY AGGRESSIVE AND OVERPOWERED ENEMIES!',
+        borderClass: 'border-rose-950 hover:border-rose-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.15)]',
+        textClass: 'text-rose-500',
+        bgClass: 'hover:bg-rose-950/20 bg-[#0c0608]/50'
+      }
+    ];
+
+    return (
+      <div className={`w-full max-w-[650px] flex flex-col gap-6 p-6 md:p-8 rounded-none ${accentBorder} bg-[#050508]/95 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-300 crt-scanlines`}>
+        <button
+          onClick={() => {
+            setIsNameValidated(false);
+          }}
+          className="w-fit flex items-center gap-1.5 px-3 py-2 rounded-none border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-[9px] font-bold text-zinc-400 hover:text-white font-press transition-colors"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" /> BACK
+        </button>
+
+        <div className="text-center flex flex-col gap-3 border-b border-zinc-800 pb-4">
+          <h2 className="text-md md:text-lg font-extrabold tracking-widest text-white font-press uppercase pixel-glow-white">
+            SELECT DIFFICULTY
+          </h2>
+          <span className={`text-[9px] font-bold uppercase tracking-wider font-press ${accentColor} ${glowClass}`}>
+            CONFIGURE OPPONENT FORCE INTELLIGENCE
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {difficulties.map((diff) => (
+            <div
+              key={diff.id}
+              onClick={() => {
+                setDifficulty(diff.id);
+                setIsDifficultyValidated(true);
+              }}
+              className={`p-5 border-2 rounded-none cursor-pointer transition-all flex flex-col gap-3 ${diff.bgClass} ${diff.borderClass}`}
+            >
+              <div className="flex justify-between items-center">
+                <span className={`text-[9.5px] font-bold font-press ${diff.textClass}`}>
+                  {diff.label}
+                </span>
+                <span className="text-[7px] text-zinc-500 font-press border border-zinc-800 px-1 py-0.5">
+                  {diff.sub}
+                </span>
+              </div>
+              <p className="text-[7.5px] text-zinc-500 leading-relaxed font-press uppercase">
+                {diff.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const isLight = selectedFaction === 'light';
   const accentBorderClass = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
@@ -292,12 +387,11 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
     <div className={`w-full max-w-[1050px] flex flex-col gap-6 p-6 md:p-8 rounded-none ${accentBorderClass} bg-[#050508]/95 backdrop-blur-md shadow-2xl animate-in slide-in-from-bottom-4 duration-300 crt-scanlines`}>
       <button
         onClick={() => {
-          setSelectedFaction(null);
-          setIsNameValidated(false);
+          setIsDifficultyValidated(false);
         }}
         className="w-fit flex items-center gap-1.5 px-3 py-2 rounded-none border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-[9px] font-bold text-zinc-400 hover:text-white font-press transition-colors"
       >
-        <ChevronLeft className="w-3.5 h-3.5" /> CHANGE SIDE
+        <ChevronLeft className="w-3.5 h-3.5" /> BACK
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
