@@ -21,7 +21,7 @@ interface SpaceCanvasProps {
 
 const WORLD_SIZE = 8000;
 const INITIAL_ASTEROIDS = 80;
-const LASER_SPEED = 7.0;
+const LASER_SPEED = 9.5;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
 const LIGHT_PILOT_NAMES = [
@@ -367,24 +367,24 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     if (fact !== faction) { // Opponent bot
       if (difficulty === 'leila') {
         stats.shield = Math.round(stats.shield * 0.18);
-        stats.speed = stats.speed * 0.35;
+        stats.speed = stats.speed * 0.7;   // still nimble enough to fly around
         stats.power = Math.round(stats.power * 0.18);
         stats.rate = stats.rate * 4.0;
       } else if (difficulty === 'c3po') {
         stats.shield = Math.round(stats.shield * 0.3);
-        stats.speed = stats.speed * 0.55;
+        stats.speed = stats.speed * 0.85;
         stats.power = Math.round(stats.power * 0.3);
         stats.rate = stats.rate * 3.0;
       } else if (difficulty === 'clone') {
-        // Medium tier — bots are clearly weaker so combat stays forgiving
+        // Medium tier — bots are weaker but fly at near-full speed
         stats.shield = Math.round(stats.shield * 0.5);
-        stats.speed = stats.speed * 0.75;
+        stats.speed = stats.speed * 1.0;
         stats.power = Math.round(stats.power * 0.5);
         stats.rate = stats.rate * 2.0;
       } else if (difficulty === 'jarjar') {
         // Hardest tier — but no longer brutal
         stats.shield = Math.round(stats.shield * 0.9);
-        stats.speed = stats.speed * 0.95;
+        stats.speed = stats.speed * 1.1;
         stats.power = Math.round(stats.power * 0.85);
         stats.rate = stats.rate * 1.15;
       }
@@ -1311,7 +1311,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax = 0;
       let ay = 0;
-      const accel = 0.16 * (isBoostActive ? 2.5 : 1.0);
+      const accel = 0.22 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
 
       // Poll Gamepad inputs if a controller is connected
@@ -1409,11 +1409,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vy += ay;
 
       // Friction/Damping
-      player.vx *= 0.96;
-      player.vy *= 0.96;
+      player.vx *= 0.975;
+      player.vy *= 0.975;
 
       // Speed clamp (faster gameplay)
-      const maxSpeed = player.stats.speed * 0.48 * speedMultiplier;
+      const maxSpeed = player.stats.speed * 0.64 * speedMultiplier;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
       if (currentSpeed > maxSpeed) {
         player.vx = (player.vx / currentSpeed) * maxSpeed;
@@ -1585,7 +1585,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax2 = 0;
       let ay2 = 0;
-      const accel2 = 0.16 * (isBoostActive2 ? 2.5 : 1.0);
+      const accel2 = 0.22 * (isBoostActive2 ? 2.5 : 1.0);
       const controlSign2 = faction2 === 'light' ? -1 : 1;
 
       // Poll Gamepad 2 inputs if connected
@@ -1661,11 +1661,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player2.vy += ay2;
 
       // Friction
-      player2.vx *= 0.96;
-      player2.vy *= 0.96;
+      player2.vx *= 0.975;
+      player2.vy *= 0.975;
 
       // Speed clamp
-      const maxSpeed2 = player2.stats.speed * 0.48 * speedMultiplier2;
+      const maxSpeed2 = player2.stats.speed * 0.64 * speedMultiplier2;
       const currentSpeed2 = Math.sqrt(player2.vx * player2.vx + player2.vy * player2.vy);
       if (currentSpeed2 > maxSpeed2) {
         player2.vx = (player2.vx / currentSpeed2) * maxSpeed2;
@@ -2076,8 +2076,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             zigzagOffset = Math.sin((ship.zigzagTimer) * 0.2) * 0.35 * (ship.zigzagDirection || 1);
           }
 
-          // Sluggish, dumb aim tracking so the player can out-turn them easily
-          ship.angle += (diff + zigzagOffset) * 0.045;
+          // Loose, dumb aim tracking so the player can out-turn them, but quick
+          // enough that bots actually fly toward the fight instead of crawling
+          ship.angle += (diff + zigzagOffset) * 0.08;
 
           // Speed Boost logic — bots roam/reposition a lot (keeps them moving)
           const lastBoost = ship.lastBoostTime || 0;
@@ -2109,8 +2110,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
           const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
           const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
-          const aiMaxSpeed = ship.stats.speed * 0.48 * aiSpeedMultiplier;
-          const accelSpeed = aiMaxSpeed * 0.08 * (aiBoostActive ? 1.8 : 1.0);
+          const aiMaxSpeed = ship.stats.speed * 0.66 * aiSpeedMultiplier;
+          const accelSpeed = aiMaxSpeed * 0.1 * (aiBoostActive ? 1.8 : 1.0);
 
           // Fly closer if far, orbit if close to make dogfights dynamic
           if (dist > 250) {
@@ -2378,7 +2379,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
 
       const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      const aiMaxSpeed = ship.stats.speed * 0.48 * aiSpeedMultiplier;
+      const aiMaxSpeed = ship.stats.speed * 0.66 * aiSpeedMultiplier;
       if (spd > aiMaxSpeed) {
         ship.vx = (ship.vx / spd) * aiMaxSpeed;
         ship.vy = (ship.vy / spd) * aiMaxSpeed;
@@ -3097,6 +3098,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   ) => {
     // Apply Screen Shake
     ctx.save();
+
+    // Clear the FULL viewport to black in screen space first — the zoom-out scale
+    // below shrinks all subsequent fills toward the center, so without this the
+    // border ring would never get cleared and would accumulate stale garbage.
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
+
     if (shake.duration > 0) {
       const dx = (Math.random() - 0.5) * shake.amplitude;
       const dy = (Math.random() - 0.5) * shake.amplitude;
