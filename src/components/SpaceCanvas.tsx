@@ -31,6 +31,12 @@ const INITIAL_ASTEROIDS = 45;
 const LASER_SPEED = 13;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
+// Discrete aim grid for keyboard / rotation aiming: 15 equally-spaced firing
+// angles per quarter (90°) → 60 directions around the full circle, 6° apart.
+const AIM_ANGLES_PER_QUARTER = 15;
+const AIM_STEP = (Math.PI / 2) / AIM_ANGLES_PER_QUARTER;
+const snapAim = (angle: number): number => Math.round(angle / AIM_STEP) * AIM_STEP;
+
 const LIGHT_PILOT_NAMES = [
   'Wedge Antilles',
   'Biggs Darklighter',
@@ -113,6 +119,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // priority for full 360° aim while still falling back to keyboard travel-aim
   // when the player isn't touching the mouse.
   const lastMouseMove = useRef(0);
+  // Repeat cooldown (frames) for Player 2's discrete grid rotation aiming.
+  const p2AimCooldown = useRef(0);
 
   // Local game states to sync with React UI
   const [hud, setHud] = useState({
@@ -1583,10 +1591,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         aimed = true;
       }
 
-      // 4. Keyboard thrust direction — WASD/arrows fire along travel (diagonals included).
-      // ax/ay are already world-space here, so no faction rotation needed.
+      // 4. Keyboard thrust direction — WASD/arrows fire along travel, snapped to
+      // the 60-direction aim grid (15 per quarter). ax/ay are world-space here.
       if (!aimed && (ax !== 0 || ay !== 0)) {
-        player.angle = Math.atan2(ay, ax);
+        player.angle = snapAim(Math.atan2(ay, ax));
         aimed = true;
       }
 
@@ -1693,15 +1701,17 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ax2 = gpAx2 * accel2 * controlSign2;
         ay2 = gpAy2 * accel2 * controlSign2;
       } else {
-        // Asteroids thrust keyboard controls for Player 2 (ArrowUp thrusts forward, ArrowLeft/Right rotates)
+        // Player 2 aims by stepping through the 60-direction grid (15 per quarter,
+        // 6° apart) with ArrowLeft/Right, so diagonal shooting is fully available.
+        // ArrowUp thrusts forward in the current aim direction.
         const p2ControlSign = faction2 === 'light' ? -1 : 1;
-        if (keysPressed.current['ArrowLeft']) {
-          player2.angle -= 0.05 * p2ControlSign;
+        if (p2AimCooldown.current > 0) p2AimCooldown.current -= 1;
+        if ((keysPressed.current['ArrowLeft'] || keysPressed.current['ArrowRight']) && p2AimCooldown.current <= 0) {
+          const dir = keysPressed.current['ArrowLeft'] ? -1 : 1;
+          player2.angle = snapAim(player2.angle) + dir * AIM_STEP * p2ControlSign;
+          p2AimCooldown.current = 6; // ~10 steps/sec when held
         }
-        if (keysPressed.current['ArrowRight']) {
-          player2.angle += 0.05 * p2ControlSign;
-        }
-        
+
         if (keysPressed.current['ArrowUp']) {
           ax2 = Math.cos(player2.angle) * accel2;
           ay2 = Math.sin(player2.angle) * accel2;
