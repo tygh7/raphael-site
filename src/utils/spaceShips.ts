@@ -12,7 +12,7 @@ export const LIGHT_SHIPS: ShipDef[] = [
       power: 15,
       rate: 300,
       range: 650,
-      shield: 140
+      shield: 350
     }
   },
   {
@@ -26,7 +26,7 @@ export const LIGHT_SHIPS: ShipDef[] = [
       power: 28,
       rate: 450,
       range: 800,
-      shield: 250
+      shield: 600
     }
   },
   {
@@ -40,7 +40,7 @@ export const LIGHT_SHIPS: ShipDef[] = [
       power: 12,
       rate: 200,
       range: 600,
-      shield: 100
+      shield: 250
     }
   },
   {
@@ -54,7 +54,7 @@ export const LIGHT_SHIPS: ShipDef[] = [
       power: 18,
       rate: 250,
       range: 700,
-      shield: 90
+      shield: 220
     }
   }
 ];
@@ -71,7 +71,7 @@ export const DARK_SHIPS: ShipDef[] = [
       power: 10,
       rate: 180,
       range: 550,
-      shield: 95
+      shield: 240
     }
   },
   {
@@ -85,7 +85,7 @@ export const DARK_SHIPS: ShipDef[] = [
       power: 10,
       rate: 220,
       range: 550,
-      shield: 80
+      shield: 200
     }
   },
   {
@@ -99,7 +99,7 @@ export const DARK_SHIPS: ShipDef[] = [
       power: 25,
       rate: 350,
       range: 750,
-      shield: 160
+      shield: 400
     }
   },
   {
@@ -113,7 +113,7 @@ export const DARK_SHIPS: ShipDef[] = [
       power: 16,
       rate: 280,
       range: 650,
-      shield: 130
+      shield: 320
     }
   },
   {
@@ -127,7 +127,7 @@ export const DARK_SHIPS: ShipDef[] = [
       power: 20,
       rate: 240,
       range: 850,
-      shield: 120
+      shield: 300
     }
   }
 ];
