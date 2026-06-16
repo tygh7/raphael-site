@@ -12,6 +12,11 @@ interface SpaceCanvasProps {
   onExit: () => void;
   playerName?: string;
   onKillFeed?: (message: string, type?: 'light' | 'dark' | 'system') => void;
+  
+  isTwoPlayers: boolean;
+  faction2?: Faction;
+  selectedShipId2?: string;
+  playerName2?: string;
 }
 
 const WORLD_SIZE = 8000;
@@ -29,22 +34,19 @@ const LIGHT_PILOT_NAMES = [
   'Arvel Crynyd',
   'Green Leader',
   'Rogue Five',
+  'Jyn Erso',
+  'Cassian Andor',
+  'Antoc Merrick',
+  'Corran Horn',
   'Poe Dameron',
-  'Snap Wexley'
+  'Snap Temminck'
 ];
 
 const DARK_PILOT_NAMES = [
-  'Iden Versio',
-  'Gideon Hask',
-  'Del Meeko',
   'Mauler Mithel',
   'Backstabber',
   'Dark Curse',
-  'Scythe One',
   'Night Beast',
-  'Obsidian Leader',
-  'Black Eight',
-  'Baron Soontir Fel',
   'Major Mihel'
 ];
 
@@ -78,11 +80,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   difficulty,
   onGameOver,
   onExit,
-  playerName = 'Rogue Leader',
-  onKillFeed
+  playerName = 'ROGUE LEADER',
+  onKillFeed,
+  isTwoPlayers,
+  faction2 = 'dark',
+  selectedShipId2 = 'tie_fighter',
+  playerName2 = 'SITH LORD'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapRef = useRef<HTMLCanvasElement | null>(null);
+  const minimap2Ref = useRef<HTMLCanvasElement | null>(null);
 
   // Input states
   const keysPressed = useRef<Record<string, boolean>>({});
@@ -113,10 +120,37 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     specialType: 'beam' as 'beam' | 'shield'
   });
 
+  const [hud2, setHud2] = useState({
+    hp: 100,
+    maxHp: 100,
+    score: 0,
+    kills: 0,
+    deaths: 0,
+    alliesCount: 0,
+    enemiesCount: 0,
+    speed: 0,
+    lightKills: 0,
+    darkKills: 0,
+    bombCooldownPercent: 100,
+    boostCooldownPercent: 100,
+    boostActive: false,
+    boostRemainingSec: 0,
+    boostType: 'dash' as 'dash' | 'multiplier',
+    specialCooldownPercent: 100,
+    specialActive: false,
+    specialRemainingSec: 0,
+    specialType: 'beam' as 'beam' | 'shield'
+  });
+
   // Flow states
   const [isDead, setIsDead] = useState(false);
   const [respawnTimeLeft, setRespawnTimeLeft] = useState(5);
   const [respawnShipId, setRespawnShipId] = useState<string>(selectedShipId);
+
+  // Player 2 Flow states
+  const [isDead2, setIsDead2] = useState(false);
+  const [respawnTimeLeft2, setRespawnTimeLeft2] = useState(5);
+  const [respawnShipId2, setRespawnShipId2] = useState<string>(selectedShipId2 || 'tie_fighter');
 
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
@@ -136,10 +170,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Dynamic canvas size state
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 800, height: 600 });
 
-  // Screen shake timer/amplitude
+  // Screen shake timer/amplitude for Player 1
   const screenShake = useRef({ duration: 0, amplitude: 0 });
   const screenFlash = useRef({ duration: 0, maxDuration: 0, color: 'rgba(255, 255, 255, 0.4)' });
   const playerWarpTimer = useRef(0);
+
+  // Screen shake timer/amplitude for Player 2
+  const screenShake2 = useRef({ duration: 0, amplitude: 0 });
+  const screenFlash2 = useRef({ duration: 0, maxDuration: 0, color: 'rgba(255, 255, 255, 0.4)' });
+  const playerWarpTimer2 = useRef(0);
 
   // Core Game Loop State (held in refs for high-frequency 60fps tick rate without React re-renders)
   const game = useRef<GameState>({
@@ -275,6 +314,26 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (interval) clearInterval(interval);
     };
   }, [isDead, isMatchOver]);
+
+  // Player 2 Respawn countdown timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isDead2 && !isMatchOver) {
+      setRespawnTimeLeft2(5);
+      interval = setInterval(() => {
+        setRespawnTimeLeft2(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isDead2, isMatchOver]);
 
   // Helper to generate a random ship from a faction with unique pilot name
   const createAiShipWithPilot = (fact: Faction, index: number): SpaceShip => {
@@ -447,12 +506,57 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     game.current.playerShip = player;
     game.current.ships = [player];
+
+    if (isTwoPlayers && selectedShipId2 && faction2) {
+      const playerDef2 = getShipDefById(selectedShipId2)!;
+      const p2x = Math.random() * (WORLD_SIZE - 800) + 400;
+      let p2y = 0;
+      if (faction2 === 'light') {
+        p2y = 200 + Math.random() * 500;
+      } else {
+        p2y = WORLD_SIZE - 700 + Math.random() * 500;
+      }
+
+      const player2: SpaceShip = {
+        id: 'player2',
+        defId: selectedShipId2,
+        name: `${playerName2} (P2)`,
+        faction: faction2,
+        x: p2x,
+        y: p2y,
+        vx: 0,
+        vy: 0,
+        angle: faction2 === 'light' ? Math.PI / 2 : -Math.PI / 2,
+        hp: playerDef2.stats.shield,
+        maxHp: playerDef2.stats.shield,
+        lastShotTime: 0,
+        isPlayer: true,
+        stats: playerDef2.stats,
+        color: playerDef2.color,
+        kills: 0,
+        deaths: 0,
+        lastHitTime: 0,
+        boostType: getBoostTypeForShip(selectedShipId2),
+        lastBoostTime: 0,
+        boostActiveTimer: 0,
+        lastBombTime: 0,
+        specialType: getSpecialTypeForShip(selectedShipId2),
+        lastSpecialTime: 0,
+        shieldActiveTimer: 0
+      };
+      game.current.player2Ship = player2;
+      game.current.ships.push(player2);
+    } else {
+      game.current.player2Ship = null;
+    }
+
     game.current.lasers = [];
     game.current.particles = [];
     game.current.score = 0;
     game.current.kills = 0;
     game.current.deaths = 0;
     setIsDead(false);
+    setIsDead2(false);
     setIsPaused(false);
     setIsMatchOver(false);
     setMatchTimeLeft(180);
@@ -495,7 +599,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
-        if (game.current.playerShip && game.current.playerShip.hp > 0 && !isDead && !isMatchOver) {
+        const canPause = game.current.playerShip && game.current.playerShip.hp > 0 && !isDead && !isMatchOver;
+        if (canPause) {
           setIsPaused(prev => !prev);
         }
         e.preventDefault();
@@ -522,6 +627,59 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         keyboardLayout.current = 'azerty';
       } else if (e.code === 'KeyA') {
         keyboardLayout.current = 'qwerty';
+      }
+
+      // Player 1 respawn controls
+      if (isDead && !isMatchOver) {
+        const shipsList = faction === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
+        const currentIndex = shipsList.findIndex(s => s.id === respawnShipId);
+        
+        if (isTwoPlayers) {
+          if (e.code === 'KeyA' || e.code === 'KeyQ') {
+            const nextIndex = (currentIndex - 1 + shipsList.length) % shipsList.length;
+            setRespawnShipId(shipsList[nextIndex].id);
+            e.preventDefault();
+          } else if (e.code === 'KeyD') {
+            const nextIndex = (currentIndex + 1) % shipsList.length;
+            setRespawnShipId(shipsList[nextIndex].id);
+            e.preventDefault();
+          } else if (e.code === 'KeyE' && respawnTimeLeft === 0) {
+            respawnPlayer();
+            e.preventDefault();
+          }
+        } else {
+          if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') {
+            const nextIndex = (currentIndex - 1 + shipsList.length) % shipsList.length;
+            setRespawnShipId(shipsList[nextIndex].id);
+            e.preventDefault();
+          } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+            const nextIndex = (currentIndex + 1) % shipsList.length;
+            setRespawnShipId(shipsList[nextIndex].id);
+            e.preventDefault();
+          } else if ((e.code === 'Enter' || e.code === 'Space') && respawnTimeLeft === 0) {
+            respawnPlayer();
+            e.preventDefault();
+          }
+        }
+      }
+
+      // Player 2 respawn controls (if active and dead)
+      if (isTwoPlayers && isDead2 && !isMatchOver) {
+        const shipsList2 = faction2 === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
+        const currentIndex2 = shipsList2.findIndex(s => s.id === respawnShipId2);
+
+        if (e.code === 'ArrowLeft') {
+          const nextIndex = (currentIndex2 - 1 + shipsList2.length) % shipsList2.length;
+          setRespawnShipId2(shipsList2[nextIndex].id);
+          e.preventDefault();
+        } else if (e.code === 'ArrowRight') {
+          const nextIndex = (currentIndex2 + 1) % shipsList2.length;
+          setRespawnShipId2(shipsList2[nextIndex].id);
+          e.preventDefault();
+        } else if ((e.code === 'Space' || e.code === 'Enter') && respawnTimeLeft2 === 0) {
+          respawnPlayer2();
+          e.preventDefault();
+        }
       }
 
       keysPressed.current[e.code] = true;
@@ -707,6 +865,42 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     setIsDead(false);
   };
 
+  // Respawn player 2 action
+  const respawnPlayer2 = () => {
+    const state = game.current;
+    if (!state.player2Ship) return;
+    const playerDef2 = getShipDefById(respawnShipId2)!;
+    
+    const px = Math.random() * (WORLD_SIZE - 800) + 400;
+    let py = 0;
+    if (faction2 === 'light') {
+      py = 200 + Math.random() * 500;
+    } else {
+      py = WORLD_SIZE - 700 + Math.random() * 500;
+    }
+
+    state.player2Ship.defId = respawnShipId2;
+    state.player2Ship.name = `${playerName2} (P2)`;
+    state.player2Ship.color = playerDef2.color;
+    state.player2Ship.stats = playerDef2.stats;
+    state.player2Ship.hp = playerDef2.stats.shield;
+    state.player2Ship.maxHp = playerDef2.stats.shield;
+    state.player2Ship.x = px;
+    state.player2Ship.y = py;
+    state.player2Ship.vx = 0;
+    state.player2Ship.vy = 0;
+    state.player2Ship.angle = faction2 === 'light' ? Math.PI / 2 : -Math.PI / 2;
+    state.player2Ship.lastHitTime = 0;
+    state.player2Ship.boostType = getBoostTypeForShip(respawnShipId2);
+    state.player2Ship.lastBoostTime = 0;
+    state.player2Ship.boostActiveTimer = 0;
+    state.player2Ship.lastBombTime = 0;
+    state.player2Ship.specialType = getSpecialTypeForShip(respawnShipId2);
+    state.player2Ship.lastSpecialTime = 0;
+    state.player2Ship.shieldActiveTimer = 0;
+    setIsDead2(false);
+  };
+
   // Helper to aggregate kills by faction
   const getFactionScores = () => {
     let lightKills = 0;
@@ -823,7 +1017,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const splashRadius = 600; // upgraded from 400 to match wider area request
     const splashDamage = 150; 
 
-    // Screenshake based on proximity to player
+    // Screenshake based on proximity to player 1
     const player = state.playerShip;
     if (player) {
       const dx = player.x - bomb.x;
@@ -838,12 +1032,35 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     }
 
+    // Screenshake based on proximity to player 2
+    const player2 = state.player2Ship;
+    if (isTwoPlayers && player2) {
+      const dx = player2.x - bomb.x;
+      const dy = player2.y - bomb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < splashRadius + 200) {
+        const factor = Math.max(0, 1 - dist / (splashRadius + 200));
+        screenShake2.current = {
+          duration: Math.floor(30 + factor * 25),
+          amplitude: Math.floor(10 + factor * 16)
+        };
+      }
+    }
+
     // Trigger purple screen flash
     screenFlash.current = {
       duration: 15,
       maxDuration: 15,
       color: 'rgba(192, 132, 252, 0.25)'
     };
+
+    if (isTwoPlayers) {
+      screenFlash2.current = {
+        duration: 15,
+        maxDuration: 15,
+        color: 'rgba(192, 132, 252, 0.25)'
+      };
+    }
 
     // Spawn purple splash explosion particles & shockwaves
     spawnSplashExplosion(bomb.x, bomb.y, '#c084fc', 70);
@@ -862,6 +1079,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ship.hp = Math.max(0, ship.hp - splashDamage);
         ship.lastHitTime = Date.now();
 
+        if (ship.hp > 0) {
+          if (ship.id === 'player') {
+            screenShake.current = { duration: 12, amplitude: 4 };
+          } else if (ship.id === 'player2') {
+            screenShake2.current = { duration: 12, amplitude: 4 };
+          }
+        }
+
         // Check fainted ship
         if (ship.hp <= 0) {
           spawnExplosion(ship.x, ship.y, '#eab308', 35);
@@ -874,15 +1099,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             killer.kills = (killer.kills || 0) + 1;
             if (killer.isPlayer) {
               state.score += ship.stats.shield * 10;
-              onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Space Bomb!`, faction);
+              const killerName = killer.id === 'player2' ? playerName2 : playerName;
+              const killerFaction = killer.id === 'player2' ? faction2 : faction;
+              onKillFeed?.(`💥 Pilot ${killerName} destroyed ${ship.name} with a Space Bomb!`, killerFaction);
             }
           }
 
-          if (ship.isPlayer) {
+          if (ship.id === 'player') {
             setIsDead(true);
             const killerName = killer ? killer.name : 'Unknown Enemy';
             const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
             onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
+          } else if (ship.id === 'player2') {
+            setIsDead2(true);
+            const killerName = killer ? killer.name : 'Unknown Enemy';
+            const killerFaction = killer ? killer.faction : (faction2 === 'light' ? 'dark' : 'light');
+            onKillFeed?.(`💀 Pilot ${playerName2} was fainted by ${killerName}!`, killerFaction);
           } else {
             const deadShip = ship;
             setTimeout(() => {
@@ -974,14 +1206,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.vy = Math.sin(ship.angle) * dashSpeed;
 
       if (ship.isPlayer) {
-        screenShake.current = { duration: 18, amplitude: 8 };
+        if (ship.id === 'player2') {
+          screenShake2.current = { duration: 18, amplitude: 8 };
+        } else {
+          screenShake.current = { duration: 18, amplitude: 8 };
+        }
       }
     } else {
       // 200% speed increase = 3x total speed multiplier for 6s (360 frames)
       ship.boostActiveTimer = 360;
 
       if (ship.isPlayer) {
-        screenShake.current = { duration: 10, amplitude: 3 };
+        if (ship.id === 'player2') {
+          screenShake2.current = { duration: 10, amplitude: 3 };
+        } else {
+          screenShake.current = { duration: 10, amplitude: 3 };
+        }
       }
     }
   };
@@ -1016,7 +1256,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       spawnExplosion(lx, ly, ship.faction === 'light' ? '#38bdf8' : '#ef4444', 30);
 
       if (ship.isPlayer) {
-        screenShake.current = { duration: 35, amplitude: 14 };
+        if (ship.id === 'player2') {
+          screenShake2.current = { duration: 35, amplitude: 14 };
+        } else {
+          screenShake.current = { duration: 35, amplitude: 14 };
+        }
       }
     } else {
       // Protect from all incoming attacks for 5s (300 frames)
@@ -1025,7 +1269,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       spawnExplosion(ship.x, ship.y, ship.faction === 'light' ? '#60a5fa' : '#f87171', 20);
 
       if (ship.isPlayer) {
-        screenShake.current = { duration: 12, amplitude: 4 };
+        if (ship.id === 'player2') {
+          screenShake2.current = { duration: 12, amplitude: 4 };
+        } else {
+          screenShake.current = { duration: 12, amplitude: 4 };
+        }
       }
     }
   };
@@ -1039,6 +1287,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     // --- 1. Screen Shake Decay ---
     if (screenShake.current.duration > 0) {
       screenShake.current.duration -= 1;
+    }
+    if (screenShake2.current.duration > 0) {
+      screenShake2.current.duration -= 1;
     }
 
     // --- 2. Update Player Ship Physics ---
@@ -1060,7 +1311,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       // Poll Gamepad inputs if a controller is connected
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      const gp = gamepads ? Array.from(gamepads).find(g => g !== null) : null;
+      // gp1 (Player 1) is gamepads[0], gp2 (Player 2) is gamepads[1]
+      const gp = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 0) : null;
+      const gp2 = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 1) : null;
       
       let gpAx = 0;
       let gpAy = 0;
@@ -1272,7 +1525,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (!aimed) {
         const canvas = canvasRef.current;
         if (canvas) {
-          const screenCenterX = canvas.width / 2;
+          const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
           const screenCenterY = canvas.height / 2;
           const dx = mousePos.current.x - screenCenterX;
           const dy = mousePos.current.y - screenCenterY;
@@ -1303,6 +1556,233 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         if (now - player.lastShotTime >= player.stats.rate) {
           fireLaser(player);
           player.lastShotTime = now;
+        }
+      }
+    }
+
+    // --- 2b. Update Player 2 Ship Physics ---
+    const player2 = state.player2Ship;
+    if (isTwoPlayers && player2 && player2.hp > 0) {
+      // Health Regeneration (if not hit for 3s / 3000ms)
+      if (player2.lastHitTime && Date.now() - player2.lastHitTime > 3000) {
+        player2.hp = Math.min(player2.maxHp, player2.hp + 0.08); // regenerates ~4.8 HP per second
+      }
+
+      // Check boost status
+      const isBoostActive2 = player2.boostActiveTimer !== undefined && player2.boostActiveTimer > 0;
+      const speedMultiplier2 = isBoostActive2 ? 3.0 : 1.0;
+
+      let ax2 = 0;
+      let ay2 = 0;
+      const accel2 = 0.24 * (isBoostActive2 ? 2.5 : 1.0);
+      const controlSign2 = faction2 === 'light' ? -1 : 1;
+
+      // Poll Gamepad 2 inputs if connected
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp2 = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 1) : null;
+
+      let gpAx2 = 0;
+      let gpAy2 = 0;
+      let gpShoot2 = false;
+      let gpBomb2 = false;
+      let gpBoost2 = false;
+      let gpSpecial2 = false;
+
+      if (gp2) {
+        const lx2 = gp2.axes[0] || 0;
+        const ly2 = gp2.axes[1] || 0;
+        const deadzone = 0.15;
+
+        if (Math.abs(lx2) > deadzone) gpAx2 = lx2;
+        if (Math.abs(ly2) > deadzone) gpAy2 = ly2;
+
+        const l1Pressed2 = gp2.buttons[4] && gp2.buttons[4].pressed;
+        const yPressed2 = gp2.buttons[3] && gp2.buttons[3].pressed;
+        if (l1Pressed2 || yPressed2) {
+          gpShoot2 = true;
+        }
+
+        if (gp2.buttons[6] && gp2.buttons[6].pressed) {
+          gpBomb2 = true;
+        }
+
+        if (gp2.buttons[5] && gp2.buttons[5].pressed) {
+          gpBoost2 = true;
+        }
+
+        if (gp2.buttons[7] && gp2.buttons[7].pressed) {
+          gpSpecial2 = true;
+        }
+      }
+
+      // Movement controls (Gamepad vs Keyboard)
+      if (gpAx2 !== 0 || gpAy2 !== 0) {
+        ax2 = gpAx2 * accel2 * controlSign2;
+        ay2 = gpAy2 * accel2 * controlSign2;
+      } else {
+        // Asteroids thrust keyboard controls for Player 2 (ArrowUp thrusts forward, ArrowLeft/Right rotates)
+        const p2ControlSign = faction2 === 'light' ? -1 : 1;
+        if (keysPressed.current['ArrowLeft']) {
+          player2.angle -= 0.05 * p2ControlSign;
+        }
+        if (keysPressed.current['ArrowRight']) {
+          player2.angle += 0.05 * p2ControlSign;
+        }
+        
+        if (keysPressed.current['ArrowUp']) {
+          ax2 = Math.cos(player2.angle) * accel2;
+          ay2 = Math.sin(player2.angle) * accel2;
+        }
+        if (keysPressed.current['ArrowDown']) {
+          // Brake/Slow down
+          player2.vx *= 0.88;
+          player2.vy *= 0.88;
+        }
+      }
+
+      // Apply forces
+      player2.vx += ax2;
+      player2.vy += ay2;
+
+      // Friction
+      player2.vx *= 0.96;
+      player2.vy *= 0.96;
+
+      // Speed clamp
+      const maxSpeed2 = player2.stats.speed * 0.65 * speedMultiplier2;
+      const currentSpeed2 = Math.sqrt(player2.vx * player2.vx + player2.vy * player2.vy);
+      if (currentSpeed2 > maxSpeed2) {
+        player2.vx = (player2.vx / currentSpeed2) * maxSpeed2;
+        player2.vy = (player2.vy / currentSpeed2) * maxSpeed2;
+      }
+
+      // Decrement boost timer
+      if (player2.boostActiveTimer && player2.boostActiveTimer > 0) {
+        player2.boostActiveTimer -= 1;
+        if (Math.random() < 0.6) {
+          const trailAngle = player2.angle + Math.PI + (Math.random() - 0.5) * 0.5;
+          state.particles.push({
+            id: `p_trail_p2_${Math.random()}`,
+            x: player2.x - Math.cos(player2.angle) * 16,
+            y: player2.y - Math.sin(player2.angle) * 16,
+            vx: Math.cos(trailAngle) * 3 + player2.vx,
+            vy: Math.sin(trailAngle) * 3 + player2.vy,
+            life: 15 + Math.floor(Math.random() * 15),
+            maxLife: 30,
+            color: '#f59e0b',
+            size: Math.random() < 0.5 ? 4.5 : 2.5
+          });
+        }
+      }
+
+      // Decrement shield timer
+      if (player2.shieldActiveTimer && player2.shieldActiveTimer > 0) {
+        player2.shieldActiveTimer -= 1;
+        if (Math.random() < 0.3) {
+          const angle = Math.random() * Math.PI * 2;
+          const px = player2.x + Math.cos(angle) * 55;
+          const py = player2.y + Math.sin(angle) * 55;
+          state.particles.push({
+            id: `p_shield_p2_${Math.random()}`,
+            x: px,
+            y: py,
+            vx: player2.vx + (Math.random() - 0.5) * 0.4,
+            vy: player2.vy + (Math.random() - 0.5) * 0.4,
+            life: 10 + Math.floor(Math.random() * 10),
+            maxLife: 20,
+            color: player2.faction === 'light' ? '#38bdf8' : '#ef4444',
+            size: 1.5
+          });
+        }
+      }
+
+      // Bomb, Boost, and Special Inputs
+      const bombPressed2 = keysPressed.current['KeyK'] || keysPressed.current['Numpad1'] || keysPressed.current['Comma'] || keysPressed.current['KeyM'] || gpBomb2;
+      const now = Date.now();
+      const lastBomb2 = player2.lastBombTime || 0;
+      if (bombPressed2 && now - lastBomb2 >= 5000) {
+        fireLaser(player2, true);
+        player2.lastBombTime = now;
+      }
+
+      const boostPressed2 = keysPressed.current['KeyL'] || keysPressed.current['Numpad3'] || keysPressed.current['Period'] || keysPressed.current['NumpadDecimal'] || gpBoost2;
+      const lastBoost2 = player2.lastBoostTime || 0;
+      if (boostPressed2 && now - lastBoost2 >= 5000) {
+        triggerSpeedBoost(player2);
+      }
+
+      const specialPressed2 = keysPressed.current['KeyO'] || keysPressed.current['Numpad2'] || keysPressed.current['Slash'] || gpSpecial2;
+      const lastSpecial2 = player2.lastSpecialTime || 0;
+      if (specialPressed2 && now - lastSpecial2 >= 7000) {
+        triggerSpecialMove(player2);
+      }
+
+      // Position update
+      player2.x += player2.vx;
+      player2.y += player2.vy;
+
+      // Map bounds
+      player2.x = Math.max(50, Math.min(WORLD_SIZE - 50, player2.x));
+
+      const isNearEnemyHangar2 = faction2 === 'light' 
+        ? player2.y > WORLD_SIZE - 100 
+        : player2.y < 100;
+
+      if (isNearEnemyHangar2) {
+        player2.x = Math.random() * (WORLD_SIZE - 800) + 400;
+        player2.y = faction2 === 'light' 
+          ? 200 + Math.random() * 500 
+          : WORLD_SIZE - 700 + Math.random() * 500;
+        player2.vx = 0;
+        player2.vy = 0;
+        player2.angle = faction2 === 'light' ? Math.PI / 2 : -Math.PI / 2;
+
+        spawnExplosion(player2.x, player2.y, player2.color, 30);
+        screenShake2.current = { duration: 25, amplitude: 12 };
+      } else {
+        player2.y = Math.max(50, Math.min(WORLD_SIZE - 50, player2.y));
+      }
+
+      // Aiming angle for Player 2
+      let aimed2 = false;
+      if (gp2) {
+        const rx2 = gp2.axes[2] || 0;
+        const ry2 = gp2.axes[3] || 0;
+        const rightDeadzone = 0.18;
+        const rightStickDist = Math.sqrt(rx2 * rx2 + ry2 * ry2);
+
+        if (rightStickDist > rightDeadzone) {
+          player2.angle = Math.atan2(ry2, rx2) + (faction2 === 'light' ? Math.PI : 0);
+          aimed2 = true;
+        } else if (gpAx2 !== 0 || gpAy2 !== 0) {
+          player2.angle = Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0);
+          aimed2 = true;
+        }
+      }
+
+      // Engine particles
+      if ((ax2 !== 0 || ay2 !== 0 || keysPressed.current['ArrowUp']) && Math.random() < 0.4) {
+        const flameAngle = player2.angle + Math.PI + (Math.random() - 0.5) * 0.4;
+        state.particles.push({
+          id: `p_p2_${Math.random()}`,
+          x: player2.x - Math.cos(player2.angle) * 16,
+          y: player2.y - Math.sin(player2.angle) * 16,
+          vx: Math.cos(flameAngle) * 1.5 + player2.vx,
+          vy: Math.sin(flameAngle) * 1.5 + player2.vy,
+          life: 10 + Math.floor(Math.random() * 10),
+          maxLife: 20,
+          color: player2.faction === 'light' ? '#38bdf8' : '#ef4444',
+          size: Math.random() < 0.5 ? 3 : 1.5
+        });
+      }
+
+      // Shoot trigger for Player 2
+      const shootPressed2 = keysPressed.current['Space'] || keysPressed.current['Numpad0'] || keysPressed.current['Enter'] || gpShoot2;
+      if (shootPressed2) {
+        const now = Date.now();
+        if (now - player2.lastShotTime >= player2.stats.rate) {
+          fireLaser(player2);
+          player2.lastShotTime = now;
         }
       }
     }
@@ -1964,7 +2444,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               spawnExplosion(laser.x, laser.y, laser.color, 12, 'beam');
               
               if (ship.isPlayer) {
-                screenShake.current = { duration: 12, amplitude: 5 };
+                if (ship.id === 'player2') {
+                  screenShake2.current = { duration: 12, amplitude: 5 };
+                } else {
+                  screenShake.current = { duration: 12, amplitude: 5 };
+                }
               }
             }
             continue; // Doesn't disappear, doesn't damage. Continue loop.
@@ -1983,7 +2467,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             spawnExplosion(laser.x, laser.y, laser.color, 15, 'beam');
             
             if (ship.isPlayer) {
-              screenShake.current = { duration: 20, amplitude: 8 };
+              if (ship.id === 'player2') {
+                screenShake2.current = { duration: 20, amplitude: 8 };
+              } else {
+                screenShake.current = { duration: 20, amplitude: 8 };
+              }
             }
 
             // Check fainted ship
@@ -1998,15 +2486,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
-                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Super Beam!`, faction);
+                  const killerName = killer.id === 'player2' ? playerName2 : playerName;
+                  const killerFaction = killer.id === 'player2' ? faction2 : faction;
+                  onKillFeed?.(`💥 Pilot ${killerName} destroyed ${ship.name} with a Super Beam!`, killerFaction);
                 }
               }
 
-              if (ship.isPlayer) {
+              if (ship.id === 'player') {
                 setIsDead(true);
                 const killerName = killer ? killer.name : 'Unknown Enemy';
                 const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
                 onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
+              } else if (ship.id === 'player2') {
+                setIsDead2(true);
+                const killerName = killer ? killer.name : 'Unknown Enemy';
+                const killerFaction = killer ? killer.faction : (faction2 === 'light' ? 'dark' : 'light');
+                onKillFeed?.(`💀 Pilot ${playerName2} was fainted by ${killerName}!`, killerFaction);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -2036,7 +2531,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             spawnExplosion(laser.x, laser.y, laser.color, 8, 'normal');
 
             if (ship.isPlayer) {
-              screenShake.current = { duration: 15, amplitude: 6 };
+              if (ship.id === 'player2') {
+                screenShake2.current = { duration: 15, amplitude: 6 };
+              } else {
+                screenShake.current = { duration: 15, amplitude: 6 };
+              }
             }
 
             // Check fainted ship
@@ -2051,15 +2550,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
-                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name}!`, faction);
+                  const killerName = killer.id === 'player2' ? playerName2 : playerName;
+                  const killerFaction = killer.id === 'player2' ? faction2 : faction;
+                  onKillFeed?.(`💥 Pilot ${killerName} destroyed ${ship.name}!`, killerFaction);
                 }
               }
 
-              if (ship.isPlayer) {
+              if (ship.id === 'player') {
                 setIsDead(true);
                 const killerName = killer ? killer.name : 'Unknown Enemy';
                 const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
                 onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
+              } else if (ship.id === 'player2') {
+                setIsDead2(true);
+                const killerName = killer ? killer.name : 'Unknown Enemy';
+                const killerFaction = killer ? killer.faction : (faction2 === 'light' ? 'dark' : 'light');
+                onKillFeed?.(`💀 Pilot ${playerName2} was fainted by ${killerName}!`, killerFaction);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -2206,9 +2712,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           if (ship.hp <= 0) {
             ship.deaths = (ship.deaths || 0) + 1;
 
-            if (ship.isPlayer) {
+            if (ship.id === 'player') {
               setIsDead(true);
               onKillFeed?.(`💀 Pilot ${playerName} crashed into an asteroid!`, 'system');
+            } else if (ship.id === 'player2') {
+              setIsDead2(true);
+              onKillFeed?.(`💀 Pilot ${playerName2} crashed into an asteroid!`, 'system');
             } else {
               // Spawn explosion for AI
               spawnExplosion(ship.x, ship.y, '#eab308', 35);
@@ -2235,7 +2744,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           }
 
           if (ship.isPlayer) {
-            screenShake.current = { duration: 10, amplitude: 4 };
+            if (ship.id === 'player2') {
+              screenShake2.current = { duration: 10, amplitude: 4 };
+            } else {
+              screenShake.current = { duration: 10, amplitude: 4 };
+            }
           }
         }
       });
@@ -2379,9 +2892,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
   };
 
-  // Render Minimap
-  const renderMinimap = () => {
-    const canvas = minimapRef.current;
+  // Draw a single minimap viewport
+  const drawMinimap = (canvas: HTMLCanvasElement | null, player: SpaceShip | null, playerFaction: Faction) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -2392,22 +2904,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.fillStyle = '#020205';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    if (!player) return;
+
     ctx.save();
 
     // If Light faction: rotate the minimap 180 degrees so their base (North) is at the bottom.
-    if (faction === 'light') {
+    if (playerFaction === 'light') {
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(Math.PI);
       ctx.translate(-canvas.width / 2, -canvas.height / 2);
     }
 
     const state = game.current;
-    const player = state.playerShip;
-    if (!player) {
-      ctx.restore();
-      return;
-    }
-
     const scale = canvas.width / WORLD_SIZE;
 
     // Draw grid lines inside minimap
@@ -2452,8 +2960,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const mx = ship.x * scale;
       const my = ship.y * scale;
 
-      if (ship.isPlayer) {
-        // Player: Blinking yellow/white dot
+      if (ship.id === player.id) {
+        // Current player: Blinking yellow/white dot
         const flash = Math.floor(Date.now() / 250) % 2 === 0;
         ctx.fillStyle = flash ? '#ffffff' : '#eab308';
         ctx.beginPath();
@@ -2466,8 +2974,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx.beginPath();
         ctx.arc(mx, my, 6, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (isTwoPlayers && game.current.playerShip && game.current.player2Ship && (ship.id === game.current.playerShip.id || ship.id === game.current.player2Ship.id)) {
+        // Other player in co-op/split-screen: Flashing cyan dot
+        const flash = Math.floor(Date.now() / 250) % 2 === 0;
+        ctx.fillStyle = flash ? '#ffffff' : '#06b6d4';
+        ctx.beginPath();
+        ctx.arc(mx, my, 3.0, 0, Math.PI * 2);
+        ctx.fill();
       } else {
-        // AI Ships: Light is Blue, Dark is Red ("red and blue lights" as requested)
+        // AI Ships: Light is Blue, Dark is Red
         ctx.fillStyle = ship.faction === 'light' ? '#38bdf8' : '#ef4444';
         ctx.beginPath();
         ctx.arc(mx, my, 2.0, 0, Math.PI * 2);
@@ -2478,7 +2993,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     // Draw screen viewport bounds
     const mainCanvas = canvasRef.current;
     if (mainCanvas) {
-      const viewW = mainCanvas.width;
+      const viewW = isTwoPlayers ? mainCanvas.width / 2 : mainCanvas.width;
       const viewH = mainCanvas.height;
 
       // Centered on player.x, player.y
@@ -2495,47 +3010,52 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.restore();
   };
 
-  // Render Scene loop
-  const renderScene = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Render Minimap wrappers
+  const renderMinimap = () => {
+    drawMinimap(minimapRef.current, game.current.playerShip, faction);
+    if (isTwoPlayers && game.current.player2Ship) {
+      drawMinimap(minimap2Ref.current, game.current.player2Ship, faction2!);
+    }
+  };
 
-    ctx.imageSmoothingEnabled = false;
-
+  // Draw a player's viewport onto a canvas region
+  const drawViewport = (
+    ctx: CanvasRenderingContext2D,
+    player: SpaceShip,
+    viewportX: number,
+    viewportY: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    playerFaction: Faction,
+    shake: { duration: number; amplitude: number },
+    warpTimer: number,
+    flash: { duration: number; maxDuration: number; color: string }
+  ) => {
     // Apply Screen Shake
     ctx.save();
-    if (screenShake.current.duration > 0) {
-      const dx = (Math.random() - 0.5) * screenShake.current.amplitude;
-      const dy = (Math.random() - 0.5) * screenShake.current.amplitude;
+    if (shake.duration > 0) {
+      const dx = (Math.random() - 0.5) * shake.amplitude;
+      const dy = (Math.random() - 0.5) * shake.amplitude;
       ctx.translate(dx, dy);
     }
 
     // Apply Camera Rotation based on Faction View
     // Light faction: rotated 180 degrees so that South (center) points UP.
-    if (faction === 'light') {
-      ctx.translate(canvas.width / 2, canvas.height / 2);
+    if (playerFaction === 'light') {
+      ctx.translate(viewportX + viewportWidth / 2, viewportY + viewportHeight / 2);
       ctx.rotate(Math.PI);
-      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+      ctx.translate(-(viewportX + viewportWidth / 2), -(viewportY + viewportHeight / 2));
     }
 
-    const player = game.current.playerShip;
-    if (!player) {
-      ctx.restore();
-      return;
-    }
-
-    // Camera is centered exactly on the player
     const cameraX = player.x;
     const cameraY = player.y;
 
-    const offsetX = canvas.width / 2 - cameraX;
-    const offsetY = canvas.height / 2 - cameraY;
+    const offsetX = viewportX + viewportWidth / 2 - cameraX;
+    const offsetY = viewportY + viewportHeight / 2 - cameraY;
 
     // 1. Draw Space Void (Solid retro arcade black)
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
 
     // 2. Draw Nebula clouds
     nebulas.current.forEach(neb => {
@@ -2553,8 +3073,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     // 3. Draw Parallax Starfield (Chunky flashing Galaga colors with twinkling animation)
     starsBackground.current.forEach((star, index) => {
-      const sx = ((star.x - cameraX * star.speed) % canvas.width + canvas.width) % canvas.width;
-      const sy = ((star.y - cameraY * star.speed) % canvas.height + canvas.height) % canvas.height;
+      const sx = ((star.x - cameraX * star.speed) % viewportWidth + viewportWidth) % viewportWidth;
+      const sy = ((star.y - cameraY * star.speed) % viewportHeight + viewportHeight) % viewportHeight;
       
       // Periodically twinkle: make ~15% of stars dim out or blink
       const twinklePhase = (Math.floor(Date.now() / 150) + index) % 7;
@@ -2563,7 +3083,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       } else {
         ctx.fillStyle = star.color;
       }
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), star.size, star.size);
+      ctx.fillRect(Math.floor(viewportX + sx), Math.floor(viewportY + sy), star.size, star.size);
     });
 
     // 4. Draw North Base Area (Light Side Green glowing border)
@@ -2602,30 +3122,32 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.lineWidth = 1;
     const gridSpacing = 160;
     const startX = Math.floor(-offsetX / gridSpacing) * gridSpacing;
-    const endX = startX + canvas.width + gridSpacing;
+    const endX = startX + viewportWidth + gridSpacing;
     const startY = Math.floor(-offsetY / gridSpacing) * gridSpacing;
-    const endY = startY + canvas.height + gridSpacing;
+    const endY = startY + viewportHeight + gridSpacing;
 
     for (let x = startX; x < endX; x += gridSpacing) {
       ctx.beginPath();
-      ctx.moveTo(x + offsetX, 0);
-      ctx.lineTo(x + offsetX, canvas.height);
+      ctx.moveTo(x + offsetX, viewportY);
+      ctx.lineTo(x + offsetX, viewportY + viewportHeight);
       ctx.stroke();
     }
     for (let y = startY; y < endY; y += gridSpacing) {
       ctx.beginPath();
-      ctx.moveTo(0, y + offsetY);
-      ctx.lineTo(canvas.width, y + offsetY);
+      ctx.moveTo(viewportX, y + offsetY);
+      ctx.lineTo(viewportX + viewportWidth, y + offsetY);
       ctx.stroke();
     }
 
     // 7. Draw World Boundary Fence
-    ctx.strokeStyle = faction === 'light' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+    ctx.strokeStyle = playerFaction === 'light' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
     ctx.lineWidth = 5;
     ctx.strokeRect(offsetX, offsetY, WORLD_SIZE, WORLD_SIZE);
 
+    const state = game.current;
+
     // 8. Draw Asteroids (Chunky flat pixel-art rocks)
-    game.current.asteroids.forEach(ast => {
+    state.asteroids.forEach(ast => {
       const sx = ast.x + offsetX;
       const sy = ast.y + offsetY;
       const r = ast.size * 12;
@@ -2646,7 +3168,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
 
     // 9. Draw Lasers (Chunky arcade strokes)
-    game.current.lasers.forEach(laser => {
+    state.lasers.forEach(laser => {
       const sx = laser.x + offsetX;
       const sy = laser.y + offsetY;
 
@@ -2691,7 +3213,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
 
     // 10. Draw Fleet Ships (Skipping dead ones)
-    game.current.ships.forEach(ship => {
+    state.ships.forEach(ship => {
       if (ship.hp <= 0) return;
       const sx = ship.x + offsetX;
       const sy = ship.y + offsetY;
@@ -2747,7 +3269,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
 
     // 11. Draw Explosion Particles
-    game.current.particles.forEach(p => {
+    state.particles.forEach(p => {
       const sx = p.x + offsetX;
       const sy = p.y + offsetY;
       const lifePct = p.life / p.maxLife;
@@ -2823,18 +3345,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.globalAlpha = 1.0;
 
     // 12. Draw offscreen indicators
-    game.current.ships.forEach(ship => {
-      if (ship.isPlayer || ship.hp <= 0) return;
+    state.ships.forEach(ship => {
+      if (ship.id === player.id || ship.hp <= 0) return;
       
       const dx = ship.x - player.x;
       const dy = ship.y - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist > canvas.width / 2 && dist < 2200) {
+      if (dist > viewportWidth / 2 && dist < 2200) {
         const angle = Math.atan2(dy, dx);
         const margin = 32;
-        const rx = canvas.width / 2 + Math.cos(angle) * (canvas.width / 2 - margin);
-        const ry = canvas.height / 2 + Math.sin(angle) * (canvas.height / 2 - margin);
+        const rx = viewportX + viewportWidth / 2 + Math.cos(angle) * (viewportWidth / 2 - margin);
+        const ry = viewportY + viewportHeight / 2 + Math.sin(angle) * (viewportHeight / 2 - margin);
 
         ctx.fillStyle = ship.faction === 'light' ? '#10b981' : '#ef4444';
         ctx.save();
@@ -2853,14 +3375,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.restore(); // Restore camera translation/rotation
 
     // 13. Draw Hyperspace Warp Lines (Viewport relative overlay)
-    if (playerWarpTimer.current > 0) {
-      const pPct = playerWarpTimer.current / 30; // 30 frames total
+    if (warpTimer > 0) {
+      const pPct = warpTimer / 30; // 30 frames total
       ctx.save();
-      ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.85)';
+      ctx.strokeStyle = playerFaction === 'light' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.85)';
       ctx.lineWidth = 3;
       const numLines = 45;
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      const centerX = viewportX + viewportWidth / 2;
+      const centerY = viewportY + viewportHeight / 2;
       
       // Radiant starfield tunnel lines
       for (let i = 0; i < numLines; i++) {
@@ -2886,8 +3408,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const portalRadius = (1.0 - pPct) * 140;
       const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, portalRadius);
       grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.2, faction === 'light' ? 'rgba(56, 189, 248, 0.9)' : 'rgba(239, 68, 68, 0.9)');
-      grad.addColorStop(0.7, faction === 'light' ? 'rgba(14, 165, 233, 0.45)' : 'rgba(225, 29, 72, 0.45)');
+      grad.addColorStop(0.2, playerFaction === 'light' ? 'rgba(56, 189, 248, 0.9)' : 'rgba(239, 68, 68, 0.9)');
+      grad.addColorStop(0.7, playerFaction === 'light' ? 'rgba(14, 165, 233, 0.45)' : 'rgba(225, 29, 72, 0.45)');
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -2898,13 +3420,98 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
 
     // 14. Draw Screen Flash Overlay
-    if (screenFlash.current.duration > 0) {
-      const fPct = screenFlash.current.duration / screenFlash.current.maxDuration;
+    if (flash.duration > 0) {
+      const fPct = flash.duration / flash.maxDuration;
       ctx.save();
-      ctx.fillStyle = screenFlash.current.color;
+      ctx.fillStyle = flash.color;
       ctx.globalAlpha = fPct;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
       ctx.restore();
+    }
+  };
+
+  // Render Scene loop (handles split-screen)
+  const renderScene = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+
+    const player = game.current.playerShip;
+    const player2 = game.current.player2Ship;
+
+    if (!player) return;
+
+    if (isTwoPlayers && player2) {
+      const w = canvas.width / 2;
+      const h = canvas.height;
+
+      // Draw Player 1 (Left Viewport)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+      ctx.clip();
+      drawViewport(
+        ctx,
+        player,
+        0,
+        0,
+        w,
+        h,
+        faction,
+        screenShake.current,
+        playerWarpTimer.current,
+        screenFlash.current
+      );
+      ctx.restore();
+
+      // Draw Player 2 (Right Viewport)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(w, 0, w, h);
+      ctx.clip();
+      drawViewport(
+        ctx,
+        player2,
+        w,
+        0,
+        w,
+        h,
+        faction2!,
+        screenShake2.current,
+        playerWarpTimer2.current,
+        screenFlash2.current
+      );
+      ctx.restore();
+
+      // Draw Split-Screen double line separator
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(w - 6, 0, 12, h);
+      
+      ctx.strokeStyle = '#eab308'; // retro arcade yellow separator line
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(w - 2.5, 0);
+      ctx.lineTo(w - 2.5, h);
+      ctx.moveTo(w + 2.5, 0);
+      ctx.lineTo(w + 2.5, h);
+      ctx.stroke();
+    } else {
+      // Single player full viewport
+      drawViewport(
+        ctx,
+        player,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        faction,
+        screenShake.current,
+        playerWarpTimer.current,
+        screenFlash.current
+      );
     }
   };
 
@@ -2913,6 +3520,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   };
 
   const shieldPercent = (hud.hp / hud.maxHp) * 100;
+  const shieldPercent2 = (hud2.hp / hud2.maxHp) * 100;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -2923,6 +3531,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   // Get current ship selection list for respawn screen
   const respawnShips = faction === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
   const selectedRespawnShipDef = [...LIGHT_SHIPS, ...DARK_SHIPS].find(s => s.id === respawnShipId);
+
+  const respawnShips2 = faction2 === 'light' ? LIGHT_SHIPS : DARK_SHIPS;
+  const selectedRespawnShipDef2 = [...LIGHT_SHIPS, ...DARK_SHIPS].find(s => s.id === respawnShipId2);
 
   // Leaderboard ranking list
   const rankings = getLeaderboard();
@@ -2975,22 +3586,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       `}</style>
 
-      {/* Full-Screen HUD Overlay Header */}
-      <div className="absolute top-4 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
-        {/* Player Stats */}
-        <div className="flex gap-6 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md">
-          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
-            SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
-            KILLS: <span className="text-emerald-400 font-bold crt-glow">{hud.kills}</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
-            DEATHS: <span className="text-rose-400 font-bold crt-glow">{hud.deaths}</span>
-          </span>
-        </div>
-
-        {/* Match Timer */}
+      {/* Global HUD elements (Match Timer, Gamepadbadge, and Pause button indicator) */}
+      <div className="absolute top-4 left-0 right-0 z-30 flex flex-col items-center pointer-events-none gap-2">
+        {/* Match Timer (Centered) */}
         <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-6 py-2 shadow-2xl backdrop-blur-md flex flex-col items-center">
           <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase">MATCH TIME</span>
           <span className={`text-sm font-extrabold crt-glow ${matchTimeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}>
@@ -2998,23 +3596,24 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           </span>
         </div>
 
-        {/* Faction Score (Light vs Dark kills) */}
-        <div className="flex gap-4 items-center bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] font-bold">
+        {/* Global Faction Score Indicator */}
+        <div className="flex gap-4 items-center bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[9px] font-bold">
           {gamepadConnected && (
             <span className="text-sky-400 animate-pulse flex items-center gap-1 mr-1 text-[8px] tracking-wider uppercase">
               <Gamepad2 className="w-3.5 h-3.5" /> GP-ACTIVE
             </span>
           )}
           <span className="text-emerald-400 flex items-center gap-1">
-            LIGHT SIDE: <span className="text-white crt-glow">{hud.lightKills}</span>
+            REBELS: <span className="text-white crt-glow">{hud.lightKills}</span>
           </span>
           <span className="text-zinc-700">|</span>
           <span className="text-rose-500 flex items-center gap-1">
-            DARK SIDE: <span className="text-white crt-glow">{hud.darkKills}</span>
+            EMPIRE: <span className="text-white crt-glow">{hud.darkKills}</span>
           </span>
         </div>
       </div>
 
+      {/* Main Game Canvas */}
       <canvas
         ref={canvasRef}
         width={canvasDimensions.width}
@@ -3022,117 +3621,239 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         className="w-full h-full cursor-crosshair block bg-black"
       />
 
-      {/* Tactical Minimap HUD (Bottom-Left above Speed Indicator) */}
-      <div className="absolute bottom-[80px] left-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[160px] pointer-events-none">
-        <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-0.5 text-center">
-          TACTICAL MAP
-        </span>
-        <canvas
-          ref={minimapRef}
-          width={136}
-          height={136}
-          className="bg-[#020205] border border-zinc-900 rounded-md block"
-        />
-      </div>
-
-      {/* Live Leaderboard Overlay (Galaga Retro style top-right kills/deaths pilot list) */}
-      <div className="absolute top-[80px] right-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[240px] pointer-events-none">
-        <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-1 text-center">
-          LEADERBOARD (TOP 5)
-        </span>
-        {rankings.slice(0, 5).map((ship, index) => {
-          const rank = index + 1;
-          const isPlayer = ship.isPlayer;
-          return (
-            <div key={ship.id} className={`flex justify-between items-center text-[7.5px] font-mono leading-none ${isPlayer ? 'text-sky-400 font-bold' : 'text-zinc-400'}`}>
-              <span className="truncate max-w-[155px]">
-                {rank}. {ship.name.split(' (')[0]}
-              </span>
-              <span>
-                {ship.kills || 0}K/{ship.deaths || 0}D
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Full-Screen HUD Overlay Footer */}
-      <div className="absolute bottom-6 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
-        {/* Thruster Speed */}
-        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] text-zinc-400 font-bold">
-          SPEED: <span className="text-white crt-glow">{hud.speed} km/s</span>
-        </div>
-
-        {/* Special Moves Cooldowns */}
-        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md flex gap-5 text-[8px] text-zinc-400 font-bold pointer-events-auto">
-          {/* Bomb Cooldown */}
-          <div className="flex items-center gap-2">
-            <span className="text-purple-400">BOMB (E/L2)</span>
-            <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-              <div
-                className="h-full bg-purple-500 transition-all duration-100"
-                style={{ width: `${hud.bombCooldownPercent}%` }}
-              />
+      {/* --- HUD RENDER SYSTEM --- */}
+      {!isTwoPlayers ? (
+        // --- ORIGINAL 1 PLAYER HUD LAYOUT ---
+        <>
+          {/* Header Stats */}
+          <div className="absolute top-4 left-6 z-30 flex flex-col gap-1 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md pointer-events-none">
+            <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName} (YOU)</span>
+            <div className="flex gap-4">
+              <span className="text-[9px] text-zinc-400">SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span></span>
+              <span className="text-[9px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold crt-glow">{hud.kills}</span></span>
+              <span className="text-[9px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold crt-glow">{hud.deaths}</span></span>
             </div>
           </div>
 
-          {/* Speed Boost Cooldown */}
-          <div className="flex items-center gap-2">
-            <span className="text-amber-400 font-mono text-[7px] uppercase leading-none">
-              {hud.boostType === 'dash' ? 'DASH (R/R1)' : 'BOOST (R/R1)'}
+          {/* Tactical Minimap */}
+          <div className="absolute bottom-[80px] left-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[160px] pointer-events-none">
+            <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-0.5 text-center">
+              TACTICAL MAP
             </span>
-            <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-              <div
-                className={`h-full transition-all duration-100 ${hud.boostActive ? 'bg-amber-300 animate-pulse' : 'bg-amber-500'}`}
-                style={{ width: `${hud.boostCooldownPercent}%` }}
-              />
-            </div>
-            {hud.boostActive && (
-              <span className="text-[7px] text-amber-300 animate-pulse font-mono font-extrabold">
-                {Math.ceil(hud.boostRemainingSec)}s
-              </span>
-            )}
-          </div>
-
-          {/* Special Move (Super Beam / Shield) Cooldown */}
-          <div className="flex items-center gap-2 border-l border-zinc-800 pl-4">
-            <span className={hud.specialType === 'beam' ? 'text-cyan-400' : 'text-blue-400 font-mono text-[7px] uppercase leading-none'}>
-              {hud.specialType === 'beam' ? 'SUPER BEAM (W/R2)' : 'SHIELD (W/R2)'}
-            </span>
-            <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-              <div
-                className={`h-full transition-all duration-100 ${hud.specialActive ? 'bg-cyan-300 animate-pulse' : (hud.specialType === 'beam' ? 'bg-cyan-500' : 'bg-blue-500')}`}
-                style={{ width: `${hud.specialCooldownPercent}%` }}
-              />
-            </div>
-            {hud.specialActive && (
-              <span className="text-[7px] text-blue-300 animate-pulse font-mono font-extrabold">
-                {hud.specialRemainingSec}s
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Shield Integrity Meter */}
-        <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl backdrop-blur-md w-[280px]">
-          <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>
-            SHIELDS:
-          </span>
-          <div className="flex-1 h-2.5 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-            <div
-              className={`h-full transition-all duration-300 ${
-                faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'
-              }`}
-              style={{ width: `${shieldPercent}%` }}
+            <canvas
+              ref={minimapRef}
+              width={136}
+              height={136}
+              className="bg-[#020205] border border-zinc-900 rounded-md block"
             />
           </div>
-          <span className="text-[10px] font-bold text-white font-mono">{hud.hp}</span>
-        </div>
-      </div>
 
-      {/* Control Help bar */}
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[8px] text-zinc-500 font-bold uppercase tracking-widest pointer-events-none">
-        Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Shoot: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">L1 / LEFT CLICK</kbd> | Bomb: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">E / L2</kbd> | Boost: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">R / R1</kbd> | Special: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">W / R2</kbd>
+          {/* Live Leaderboard */}
+          <div className="absolute top-[80px] right-6 z-30 bg-zinc-950/90 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md flex flex-col gap-2 w-[240px] pointer-events-none">
+            <span className="text-[8px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1.5 mb-1 text-center">
+              LEADERBOARD (TOP 5)
+            </span>
+            {rankings.slice(0, 5).map((ship, index) => {
+              const rank = index + 1;
+              const isPlayerRow = ship.isPlayer;
+              return (
+                <div key={ship.id} className={`flex justify-between items-center text-[7.5px] font-mono leading-none ${isPlayerRow ? 'text-sky-400 font-bold' : 'text-zinc-400'}`}>
+                  <span className="truncate max-w-[155px]">
+                    {rank}. {ship.name.split(' (')[0]}
+                  </span>
+                  <span>
+                    {ship.kills || 0}K/{ship.deaths || 0}D
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer Overlays */}
+          <div className="absolute bottom-6 left-0 right-0 z-30 px-6 flex justify-between items-center pointer-events-none">
+            {/* Speed */}
+            <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md text-[10px] text-zinc-400 font-bold">
+              SPEED: <span className="text-white crt-glow">{hud.speed} km/s</span>
+            </div>
+
+            {/* Specials */}
+            <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md flex gap-5 text-[8px] text-zinc-400 font-bold pointer-events-auto">
+              <div className="flex items-center gap-2">
+                <span className="text-purple-400">BOMB (E/L2)</span>
+                <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                  <div className="h-full bg-purple-500 transition-all duration-100" style={{ width: `${hud.bombCooldownPercent}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 uppercase leading-none">{hud.boostType === 'dash' ? 'DASH (R/R1)' : 'BOOST (R/R1)'}</span>
+                <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                  <div className={`h-full transition-all duration-100 ${hud.boostActive ? 'bg-amber-300 animate-pulse' : 'bg-amber-500'}`} style={{ width: `${hud.boostCooldownPercent}%` }} />
+                </div>
+                {hud.boostActive && <span className="text-[7px] text-amber-300 animate-pulse font-extrabold">{Math.ceil(hud.boostRemainingSec)}s</span>}
+              </div>
+              <div className="flex items-center gap-2 border-l border-zinc-800 pl-4">
+                <span className={hud.specialType === 'beam' ? 'text-cyan-400' : 'text-blue-400 uppercase leading-none'}>{hud.specialType === 'beam' ? 'SUPER BEAM (W/R2)' : 'SHIELD (W/R2)'}</span>
+                <div className="w-16 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                  <div className={`h-full transition-all duration-100 ${hud.specialActive ? 'bg-cyan-300 animate-pulse' : (hud.specialType === 'beam' ? 'bg-cyan-500' : 'bg-blue-500')}`} style={{ width: `${hud.specialCooldownPercent}%` }} />
+                </div>
+                {hud.specialActive && <span className="text-[7px] text-blue-300 animate-pulse font-extrabold">{hud.specialRemainingSec}s</span>}
+              </div>
+            </div>
+
+            {/* Shields */}
+            <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl backdrop-blur-md w-[280px]">
+              <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELDS:</span>
+              <div className="flex-1 h-2.5 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
+              </div>
+              <span className="text-[10px] font-bold text-white font-mono">{hud.hp}</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        // --- 2 PLAYERS SPLIT-SCREEN HUD LAYOUT ---
+        <>
+          {/* PLAYER 1 HUD PANEL (LEFT HALF) */}
+          <div className="absolute top-0 left-0 w-1/2 h-full z-30 pointer-events-none p-6 flex flex-col justify-between">
+            {/* Header (Top-Left of screen) */}
+            <div className="flex flex-col gap-1 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md self-start">
+              <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName} (J1)</span>
+              <div className="flex gap-4">
+                <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud.score}</span></span>
+                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud.kills}</span></span>
+                <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud.deaths}</span></span>
+              </div>
+            </div>
+
+            {/* Bottom Section (Minimap & Footer) */}
+            <div className="flex flex-col gap-4 self-stretch">
+              {/* Tactical Minimap */}
+              <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-2.5 shadow-2xl backdrop-blur-md flex flex-col gap-1.5 w-[140px]">
+                <span className="text-[7px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1 mb-0.5 text-center">
+                  MAP P1
+                </span>
+                <canvas
+                  ref={minimapRef}
+                  width={120}
+                  height={120}
+                  className="bg-[#020205] border border-zinc-900 rounded-md block"
+                />
+              </div>
+
+              {/* Bottom stats layout */}
+              <div className="flex flex-col gap-2.5 bg-zinc-950/95 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md self-stretch pointer-events-auto">
+                {/* Shield Bar */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-[8px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELD:</span>
+                  <div className="flex-1 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                    <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
+                  </div>
+                  <span className="text-[8px] font-bold text-white font-mono">{hud.hp}</span>
+                </div>
+
+                {/* Speed & Specials Row */}
+                <div className="flex justify-between items-center gap-2 border-t border-zinc-900 pt-2.5">
+                  <span className="text-[8px] text-zinc-400 font-bold">SPEED: <span className="text-white">{hud.speed} km/s</span></span>
+                  <div className="flex gap-3 text-[7.5px] text-zinc-400 font-bold">
+                    <div className="flex items-center gap-1">
+                      <span className="text-purple-400 text-[6.5px]">BOMB</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className="h-full bg-purple-500" style={{ width: `${hud.bombCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-400 text-[6.5px]">{hud.boostType === 'dash' ? 'DASH' : 'BOOST'}</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className={`h-full ${hud.boostActive ? 'bg-amber-300 animate-pulse' : 'bg-amber-500'}`} style={{ width: `${hud.boostCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 border-l border-zinc-900 pl-2">
+                      <span className={`${hud.specialType === 'beam' ? 'text-cyan-400' : 'text-blue-400'} text-[6.5px]`}>{hud.specialType === 'beam' ? 'BEAM' : 'SHLD'}</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className={`h-full ${hud.specialActive ? 'bg-cyan-300 animate-pulse' : (hud.specialType === 'beam' ? 'bg-cyan-500' : 'bg-blue-500')}`} style={{ width: `${hud.specialCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PLAYER 2 HUD PANEL (RIGHT HALF) */}
+          <div className="absolute top-0 right-0 w-1/2 h-full z-30 pointer-events-none p-6 flex flex-col justify-between items-end">
+            {/* Header (Top-Right of screen) */}
+            <div className="flex flex-col gap-1 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md self-end items-end">
+              <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName2} (J2)</span>
+              <div className="flex gap-4">
+                <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud2.score}</span></span>
+                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud2.kills}</span></span>
+                <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud2.deaths}</span></span>
+              </div>
+            </div>
+
+            {/* Bottom Section (Minimap & Footer) */}
+            <div className="flex flex-col gap-4 self-stretch items-end">
+              {/* Tactical Minimap */}
+              <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-2.5 shadow-2xl backdrop-blur-md flex flex-col gap-1.5 w-[140px]">
+                <span className="text-[7px] text-zinc-500 font-bold tracking-widest uppercase border-b border-zinc-900 pb-1 mb-0.5 text-center">
+                  MAP P2
+                </span>
+                <canvas
+                  ref={minimap2Ref}
+                  width={120}
+                  height={120}
+                  className="bg-[#020205] border border-zinc-900 rounded-md block"
+                />
+              </div>
+
+              {/* Bottom stats layout */}
+              <div className="flex flex-col gap-2.5 bg-zinc-950/95 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md self-stretch pointer-events-auto">
+                {/* Shield Bar */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-[8px] font-bold ${faction2 === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELD:</span>
+                  <div className="flex-1 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
+                    <div className={`h-full transition-all duration-300 ${faction2 === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent2}%` }} />
+                  </div>
+                  <span className="text-[8px] font-bold text-white font-mono">{hud2.hp}</span>
+                </div>
+
+                {/* Speed & Specials Row */}
+                <div className="flex justify-between items-center gap-2 border-t border-zinc-900 pt-2.5">
+                  <span className="text-[8px] text-zinc-400 font-bold">SPEED: <span className="text-white">{hud2.speed} km/s</span></span>
+                  <div className="flex gap-3 text-[7.5px] text-zinc-400 font-bold">
+                    <div className="flex items-center gap-1">
+                      <span className="text-purple-400 text-[6.5px]">BOMB</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className="h-full bg-purple-500" style={{ width: `${hud2.bombCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-400 text-[6.5px]">{hud2.boostType === 'dash' ? 'DASH' : 'BOOST'}</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className={`h-full ${hud2.boostActive ? 'bg-amber-300 animate-pulse' : 'bg-amber-500'}`} style={{ width: `${hud2.boostCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 border-l border-zinc-900 pl-2">
+                      <span className={`${hud2.specialType === 'beam' ? 'text-cyan-400' : 'text-blue-400'} text-[6.5px]`}>{hud2.specialType === 'beam' ? 'BEAM' : 'SHLD'}</span>
+                      <div className="w-8 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                        <div className={`h-full ${hud2.specialActive ? 'bg-cyan-300 animate-pulse' : (hud2.specialType === 'beam' ? 'bg-cyan-500' : 'bg-blue-500')}`} style={{ width: `${hud2.specialCooldownPercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Control Help bar (Centered bottom) */}
+      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 text-[6.5px] text-zinc-500 font-bold uppercase tracking-wider pointer-events-none text-center whitespace-nowrap">
+        {!isTwoPlayers ? (
+          <span>Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Fire: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A</kbd> | Bomb: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">E</kbd> | Boost: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">R</kbd> | Special: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">W</kbd></span>
+        ) : (
+          <span>P1 (ZQSD, A-Shoot, E-Bomb, R-Boost, W-Special) | P2 (Arrows, Space-Shoot, Comma-Bomb, Period-Boost, Slash-Special)</span>
+        )}
       </div>
 
       {/* Pause Menu Overlay */}
@@ -3152,7 +3873,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <button
                 onClick={() => setIsPaused(false)}
                 onMouseEnter={() => setPauseSelect('resume')}
-                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto ${
+                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto cursor-pointer ${
                   pauseSelect === 'resume'
                     ? 'border-emerald-500 bg-emerald-950/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
                     : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
@@ -3168,7 +3889,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                   onExit();
                 }}
                 onMouseEnter={() => setPauseSelect('quit')}
-                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto ${
+                className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto cursor-pointer ${
                   pauseSelect === 'quit'
                     ? 'border-rose-500 bg-rose-950/20 text-rose-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
                     : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
@@ -3186,41 +3907,40 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         </div>
       )}
 
-      {/* Respawn Overlay Screen with Ship Selection (5s countdown lock) */}
+      {/* Player 1 Respawn Menu Overlay (Left Side when splitscreen) */}
       {isDead && !isMatchOver && (
-        <div className="absolute inset-0 z-45 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-6 gap-5 animate-in fade-in duration-300 pointer-events-auto">
-          <div className="w-12 h-12 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.25)] animate-pulse">
-            <Skull className="w-6 h-6" />
+        <div className={`absolute top-0 left-0 ${isTwoPlayers ? 'w-1/2 border-r-4 border-double border-zinc-800' : 'w-full'} h-full z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-6 gap-4 animate-in fade-in duration-300 pointer-events-auto`}>
+          <div className="w-10 h-10 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.25)] animate-pulse">
+            <Skull className="w-5 h-5" />
           </div>
 
-          <div className="text-center flex flex-col gap-1.5">
-            <h2 className="text-xl font-extrabold uppercase tracking-widest text-white crt-glow">
-              STARFIGHTER ELIMINATED
+          <div className="text-center flex flex-col gap-1">
+            <h2 className={`font-extrabold uppercase tracking-wider text-white crt-glow ${isTwoPlayers ? 'text-xs' : 'text-lg'}`}>
+              {playerName} ELIMINATED
             </h2>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-              Choose a fighter from base hangar for hyperspace deploy
+            <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
+              Choose P1 starfighter from base hangar
             </p>
           </div>
 
-          {/* Ship Selection Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-[660px] w-full p-3 border border-zinc-800 bg-zinc-950/80 rounded-2xl shadow-inner">
+          {/* Grid */}
+          <div className={`grid grid-cols-2 ${isTwoPlayers ? 'gap-2 max-w-[320px]' : 'md:grid-cols-4 gap-3 max-w-[660px]'} w-full p-2 border border-zinc-800 bg-zinc-950/80 rounded-2xl shadow-inner`}>
             {respawnShips.map((ship) => {
               const active = ship.id === respawnShipId;
               const activeBorderCol = faction === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
-              
               return (
                 <div
                   key={ship.id}
                   onClick={() => setRespawnShipId(ship.id)}
-                  className={`p-3 rounded-xl border text-center cursor-pointer transition-all flex flex-col gap-1.5 ${
+                  className={`p-2 rounded-xl border text-center cursor-pointer transition-all flex flex-col gap-1 ${
                     active ? activeBorderCol : `border-zinc-900 bg-zinc-900/10 hover:border-zinc-800`
                   }`}
                 >
-                  <span className="font-bold text-[9px] text-white uppercase tracking-wider block truncate">{ship.name.split(' ').pop() || ship.name}</span>
+                  <span className="font-bold text-[8px] text-white uppercase tracking-wider block truncate">{ship.name.split(' ').pop() || ship.name}</span>
                   <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden">
                     <div className="h-full bg-sky-500" style={{ width: `${(ship.stats.speed / 8) * 100}%` }} />
                   </div>
-                  <span className="text-[7.5px] text-zinc-500 font-mono">
+                  <span className="text-[7px] text-zinc-500 font-mono">
                     SPD:{ship.stats.speed} HP:{ship.stats.shield}
                   </span>
                 </div>
@@ -3229,98 +3949,165 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           </div>
 
           {selectedRespawnShipDef && (
-            <div className="flex flex-col gap-3 max-w-[660px] w-full border border-zinc-800/80 bg-zinc-950/70 p-4 rounded-2xl shadow-inner font-mono text-[9px] text-zinc-400">
-              {/* Description */}
-              <div className="text-center font-sans italic text-zinc-300 text-[10.5px]">
+            <div className={`flex flex-col gap-2.5 ${isTwoPlayers ? 'max-w-[320px]' : 'max-w-[660px]'} w-full border border-zinc-800/80 bg-zinc-950/70 p-3 rounded-xl shadow-inner font-mono text-[8px] text-zinc-400`}>
+              <div className="text-center font-sans italic text-zinc-300 text-[9px] leading-relaxed truncate">
                 "{selectedRespawnShipDef.description}"
               </div>
-              
-              {/* Stat badges */}
-              <div className="grid grid-cols-5 gap-2 border-t border-zinc-900 pt-3 text-center">
-                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-[7.5px] text-zinc-500 uppercase">Speed</span>
-                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.speed}</span>
+              <div className="grid grid-cols-5 gap-1 border-t border-zinc-900 pt-2 text-center text-[7.5px]">
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">SPD</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef.stats.speed}</span>
                 </div>
-                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-[7.5px] text-zinc-500 uppercase">Power</span>
-                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.power}</span>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">PWR</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef.stats.power}</span>
                 </div>
-                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-[7.5px] text-zinc-500 uppercase">Rate</span>
-                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.rate}ms</span>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">RAT</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef.stats.rate}ms</span>
                 </div>
-                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-[7.5px] text-zinc-500 uppercase">Range</span>
-                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.range}px</span>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">RNG</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef.stats.range}px</span>
                 </div>
-                <div className="flex flex-col gap-0.5 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-[7.5px] text-zinc-500 uppercase">Shield</span>
-                  <span className="font-bold text-white text-[10px]">{selectedRespawnShipDef.stats.shield}</span>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">HP</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef.stats.shield}</span>
                 </div>
               </div>
-
-              {/* Abilities details */}
-              <div className="border-t border-zinc-900 pt-3 flex flex-col gap-2">
-                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
-                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Dash / Boost (R/R1):</span>
-                  {getBoostTypeForShip(selectedRespawnShipDef.id) === 'dash' ? (
-                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-purple-500/20 bg-purple-950/20 text-purple-400">
-                      🚀 Dagger Dash (320px Jump)
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-amber-500/20 bg-amber-950/20 text-amber-400">
-                      🔥 Overdrive (+200% / 6s)
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
-                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Bomb (E/L2):</span>
-                  <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-violet-500/20 bg-violet-950/20 text-violet-400">
-                    💣 Space Bomb (Wide Radius)
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center bg-zinc-900/10 p-2 rounded-xl border border-zinc-900/30">
-                  <span className="text-zinc-500 font-bold uppercase text-[7.5px] tracking-wider">Shield / Laser Beam (W/R2):</span>
+              <div className="border-t border-zinc-900 pt-2 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center text-[7px]">
+                  <span className="text-zinc-500 uppercase">Special (W):</span>
                   {getSpecialTypeForShip(selectedRespawnShipDef.id) === 'beam' ? (
-                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-cyan-500/20 bg-cyan-950/20 text-cyan-400 animate-pulse">
-                      ⚡ Super Beam (1000 DMG)
-                    </span>
+                    <span className="text-cyan-400">⚡ Super Beam</span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase border border-blue-500/20 bg-blue-950/20 text-blue-400 animate-pulse">
-                      🛡️ Shield (5s Reflect)
-                    </span>
+                    <span className="text-blue-400">🛡️ Shield Reflect</span>
                   )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Locked timer button */}
-          <div className="flex flex-col items-center gap-2 mt-2">
-            {respawnTimeLeft > 0 ? (
-              <span className="text-xs font-mono font-bold text-yellow-500 animate-pulse uppercase tracking-wider">
-                RESPAWN LOCKED FOR {respawnTimeLeft}s
-              </span>
-            ) : (
-              <span className="text-xs font-mono font-bold text-emerald-400 animate-pulse uppercase tracking-wider">
-                READY FOR LAUNCH
-              </span>
-            )}
-            
+          {/* Spawn lock and launch */}
+          <div className="flex flex-col items-center gap-1.5 mt-1">
+            <span className="text-[8px] font-bold text-yellow-500">
+              {respawnTimeLeft > 0 ? `LOCKED: ${respawnTimeLeft}s` : 'READY'}
+            </span>
             <button
               onClick={respawnPlayer}
               disabled={respawnTimeLeft > 0}
-              className={`py-3.5 px-10 text-xs font-bold text-white rounded-xl transition-all uppercase ${
+              className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
                 respawnTimeLeft > 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction === 'light'
-                    ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer'
-                    : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)] cursor-pointer'
+                    ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                    : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
-              {respawnTimeLeft > 0 ? `LOCKED (${respawnTimeLeft}s)` : 'LAUNCH FIGHTER'}
+              {respawnTimeLeft > 0 ? `WAIT (${respawnTimeLeft}s)` : 'LAUNCH (E)'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Player 2 Respawn Menu Overlay (Right Side when splitscreen) */}
+      {isTwoPlayers && isDead2 && !isMatchOver && (
+        <div className="absolute top-0 right-0 w-1/2 h-full z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-6 gap-4 animate-in fade-in duration-300 pointer-events-auto border-l-4 border-double border-zinc-800">
+          <div className="w-10 h-10 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.25)] animate-pulse">
+            <Skull className="w-5 h-5" />
+          </div>
+
+          <div className="text-center flex flex-col gap-1">
+            <h2 className="font-extrabold uppercase tracking-wider text-white crt-glow text-xs">
+              {playerName2} ELIMINATED
+            </h2>
+            <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
+              Choose P2 starfighter from base hangar
+            </p>
+          </div>
+
+          {/* Grid */}
+          <div className="grid grid-cols-2 gap-2 max-w-[320px] w-full p-2 border border-zinc-800 bg-zinc-950/80 rounded-2xl shadow-inner">
+            {respawnShips2.map((ship) => {
+              const active = ship.id === respawnShipId2;
+              const activeBorderCol = faction2 === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
+              return (
+                <div
+                  key={ship.id}
+                  onClick={() => setRespawnShipId2(ship.id)}
+                  className={`p-2 rounded-xl border text-center cursor-pointer transition-all flex flex-col gap-1 ${
+                    active ? activeBorderCol : `border-zinc-900 bg-zinc-900/10 hover:border-zinc-800`
+                  }`}
+                >
+                  <span className="font-bold text-[8px] text-white uppercase tracking-wider block truncate">{ship.name.split(' ').pop() || ship.name}</span>
+                  <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden">
+                    <div className="h-full bg-sky-500" style={{ width: `${(ship.stats.speed / 8) * 100}%` }} />
+                  </div>
+                  <span className="text-[7px] text-zinc-500 font-mono">
+                    SPD:{ship.stats.speed} HP:{ship.stats.shield}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {selectedRespawnShipDef2 && (
+            <div className="flex flex-col gap-2.5 max-w-[320px] w-full border border-zinc-800/80 bg-zinc-950/70 p-3 rounded-xl shadow-inner font-mono text-[8px] text-zinc-400">
+              <div className="text-center font-sans italic text-zinc-300 text-[9px] leading-relaxed truncate">
+                "{selectedRespawnShipDef2.description}"
+              </div>
+              <div className="grid grid-cols-5 gap-1 border-t border-zinc-900 pt-2 text-center text-[7.5px]">
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">SPD</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef2.stats.speed}</span>
+                </div>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">PWR</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef2.stats.power}</span>
+                </div>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">RAT</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef2.stats.rate}ms</span>
+                </div>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">RNG</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef2.stats.range}px</span>
+                </div>
+                <div className="flex flex-col bg-zinc-900/40 p-1 rounded border border-zinc-850">
+                  <span className="text-[6.5px] text-zinc-500">HP</span>
+                  <span className="font-bold text-white">{selectedRespawnShipDef2.stats.shield}</span>
+                </div>
+              </div>
+              <div className="border-t border-zinc-900 pt-2 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center text-[7px]">
+                  <span className="text-zinc-500 uppercase">Special (Slash):</span>
+                  {getSpecialTypeForShip(selectedRespawnShipDef2.id) === 'beam' ? (
+                    <span className="text-cyan-400">⚡ Super Beam</span>
+                  ) : (
+                    <span className="text-blue-400">🛡️ Shield Reflect</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Spawn lock and launch */}
+          <div className="flex flex-col items-center gap-1.5 mt-1">
+            <span className="text-[8px] font-bold text-yellow-500">
+              {respawnTimeLeft2 > 0 ? `LOCKED: ${respawnTimeLeft2}s` : 'READY'}
+            </span>
+            <button
+              onClick={respawnPlayer2}
+              disabled={respawnTimeLeft2 > 0}
+              className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
+                respawnTimeLeft2 > 0
+                  ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
+                  : faction2 === 'light'
+                    ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                    : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
+              }`}
+            >
+              {respawnTimeLeft2 > 0 ? `WAIT (${respawnTimeLeft2}s)` : 'LAUNCH (SPACE)'}
             </button>
           </div>
         </div>
@@ -3339,10 +4126,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 {factionWinnerMsg}
               </h3>
               <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mt-1">
-                Final standing - Light Side: {factionScores.lightKills} Kills | Dark Side: {factionScores.darkKills} Kills
+                Final standing - rebels: {factionScores.lightKills} Kills | Empire: {factionScores.darkKills} Kills
               </p>
               <p className="text-[8px] text-zinc-650 font-mono uppercase tracking-widest mt-0.5">
-                Light Ratio: {(factionScores.lightDeaths === 0 ? factionScores.lightKills : (factionScores.lightKills / factionScores.lightDeaths)).toFixed(2)} | Dark Ratio: {(factionScores.darkDeaths === 0 ? factionScores.darkKills : (factionScores.darkKills / factionScores.darkDeaths)).toFixed(2)}
+                Rebels Ratio: {(factionScores.lightDeaths === 0 ? factionScores.lightKills : (factionScores.lightKills / factionScores.lightDeaths)).toFixed(2)} | Empire Ratio: {(factionScores.darkDeaths === 0 ? factionScores.darkKills : (factionScores.darkKills / factionScores.darkDeaths)).toFixed(2)}
               </p>
             </div>
 
@@ -3385,7 +4172,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                         </td>
                         <td className="py-2.5 px-4 uppercase text-[8px] font-bold">
                           <span className={ship.faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}>
-                            {ship.faction}
+                            {ship.faction === 'light' ? 'rebels' : 'empire'}
                           </span>
                         </td>
                         <td className="py-2.5 px-4 text-center text-zinc-100 font-bold">{ship.kills || 0}</td>

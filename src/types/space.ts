@@ -116,6 +116,7 @@ export interface Asteroid {
 
 export interface GameState {
   playerShip: SpaceShip | null;
+  player2Ship?: SpaceShip | null;
   faction: Faction | null;
   ships: SpaceShip[];
   lasers: Laser[];
