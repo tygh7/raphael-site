@@ -676,6 +676,17 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         return;
       }
 
+      // Prevent browser default behavior (scrolling, etc.) for all gameplay-active keys
+      const gameplayKeys = [
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+        'Space', 'KeyZ', 'KeyQ', 'KeyS', 'KeyD', 'KeyA', 'KeyW',
+        'KeyE', 'KeyR', 'KeyK', 'KeyL', 'KeyM', 'KeyO', 'KeyH', 'KeyJ',
+        'Numpad0', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad6'
+      ];
+      if (gameplayKeys.includes(e.code)) {
+        e.preventDefault();
+      }
+
       if (e.code === 'KeyZ' || e.code === 'KeyQ') {
         keyboardLayout.current = 'azerty';
       } else if (e.code === 'KeyA') {
@@ -1443,19 +1454,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const moveUpPressed = keyboardLayout.current === 'azerty'
           ? (keysPressed.current['KeyZ'] || (!isTwoPlayers && keysPressed.current['ArrowUp']))
           : (keysPressed.current['KeyW'] || (!isTwoPlayers && keysPressed.current['ArrowUp']));
+        const moveDownPressed = keysPressed.current['KeyS'] || (!isTwoPlayers && keysPressed.current['ArrowDown']);
+        const moveLeftPressed = keysPressed.current['KeyA'] || (!isTwoPlayers && keysPressed.current['ArrowLeft']);
+        const moveRightPressed = keysPressed.current['KeyD'] || (!isTwoPlayers && keysPressed.current['ArrowRight']);
 
-        if (moveUpPressed) {
-          ay = -accel * controlSign;
-        }
-        if (keysPressed.current['KeyS'] || (!isTwoPlayers && keysPressed.current['ArrowDown'])) {
-          ay = accel * controlSign;
-        }
-        if (keysPressed.current['KeyA'] || (!isTwoPlayers && keysPressed.current['ArrowLeft'])) {
-          ax = -accel * controlSign;
-        }
-        if (keysPressed.current['KeyD'] || (!isTwoPlayers && keysPressed.current['ArrowRight'])) {
-          ax = accel * controlSign;
-        }
+        if (moveUpPressed) ay -= accel * controlSign;
+        if (moveDownPressed) ay += accel * controlSign;
+        if (moveLeftPressed) ax -= accel * controlSign;
+        if (moveRightPressed) ax += accel * controlSign;
       }
 
       // Snap movement direction to the 60-direction grid (15 angles per quarter)
@@ -1762,18 +1768,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ay2 = gpAy2 * accel2 * controlSign2;
       } else {
         // Player 2 Keyboard direct movement (Arrow keys, matching Player 1's ZQSD style)
-        if (keysPressed.current['ArrowUp']) {
-          ay2 = -accel2 * controlSign2;
-        }
-        if (keysPressed.current['ArrowDown']) {
-          ay2 = accel2 * controlSign2;
-        }
-        if (keysPressed.current['ArrowLeft']) {
-          ax2 = -accel2 * controlSign2;
-        }
-        if (keysPressed.current['ArrowRight']) {
-          ax2 = accel2 * controlSign2;
-        }
+        if (keysPressed.current['ArrowUp']) ay2 -= accel2 * controlSign2;
+        if (keysPressed.current['ArrowDown']) ay2 += accel2 * controlSign2;
+        if (keysPressed.current['ArrowLeft']) ax2 -= accel2 * controlSign2;
+        if (keysPressed.current['ArrowRight']) ax2 += accel2 * controlSign2;
       }
 
       // Snap movement direction to the 60-direction grid (15 angles per quarter)
