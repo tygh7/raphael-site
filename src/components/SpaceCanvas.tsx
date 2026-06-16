@@ -10,7 +10,7 @@ interface SpaceCanvasProps {
   onGameOver: (score: number, kills: number) => void;
   onExit: () => void;
   playerName?: string;
-  onKillFeed?: (message: string) => void;
+  onKillFeed?: (message: string, type?: 'light' | 'dark' | 'system') => void;
 }
 
 const WORLD_SIZE = 8000;
@@ -136,6 +136,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Screen shake timer/amplitude
   const screenShake = useRef({ duration: 0, amplitude: 0 });
+  const screenFlash = useRef({ duration: 0, maxDuration: 0, color: 'rgba(255, 255, 255, 0.4)' });
+  const playerWarpTimer = useRef(0);
 
   // Core Game Loop State (held in refs for high-frequency 60fps tick rate without React re-renders)
   const game = useRef<GameState>({
@@ -288,10 +290,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       y = WORLD_SIZE - 700 + Math.random() * 500; // South base area
     }
 
+    // Squad configuration: every 7th ship is a squad leader
+    const isLeader = index % 7 === 0;
+    const leaderIndex = Math.floor(index / 7) * 7;
+    const leaderId = `ai_${fact}_leader_${leaderIndex}`;
+    const shipId = isLeader ? leaderId : `ai_${fact}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+
     return {
-      id: `ai_${fact}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+      id: shipId,
       defId: def.id,
-      name: pilotName,
+      name: isLeader ? `👑 Leader ${pilotName}` : pilotName,
       faction: fact,
       x,
       y,
@@ -315,26 +323,60 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       lastBombTime: 0,
       specialType: getSpecialTypeForShip(def.id),
       lastSpecialTime: 0,
-      shieldActiveTimer: 0
+      shieldActiveTimer: 0,
+      isSquadLeader: isLeader,
+      squadLeaderId: isLeader ? undefined : leaderId,
+      formationAngleOffset: isLeader ? undefined : ((index % 6) + 1) * (Math.PI / 3.5) - Math.PI / 2,
+      formationDistOffset: isLeader ? undefined : 110 + Math.floor(index / 6) * 45,
+      zigzagTimer: 0,
+      zigzagDirection: 1,
+      isChased: false
     };
   };
 
   // Helper to trigger particles (chunkier retro explosion fragments)
-  const spawnExplosion = (x: number, y: number, color: string, count = 20) => {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 0.5 + Math.random() * 3;
-      game.current.particles.push({
-        id: `p_${Math.random()}`,
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 25 + Math.floor(Math.random() * 25),
-        maxLife: 50,
-        color,
-        size: Math.random() < 0.3 ? 4 : 2
-      });
+  const spawnExplosion = (x: number, y: number, color: string, count = 20, type: 'normal' | 'beam' | 'asteroid' = 'normal') => {
+    const state = game.current;
+    
+    if (type === 'beam') {
+      // Beam lightning arcs
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.0 + Math.random() * 5;
+        state.particles.push({
+          id: `p_lightning_${Math.random()}`,
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 10 + Math.floor(Math.random() * 12),
+          maxLife: 22,
+          color: Math.random() < 0.4 ? '#ffffff' : color,
+          size: 1.5 + Math.random() * 1.5,
+          isLightning: true
+        });
+      }
+    } else {
+      // Normal or Asteroid debris
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = type === 'asteroid' ? 0.3 + Math.random() * 2.2 : 0.5 + Math.random() * 3.5;
+        const particleColor = type === 'asteroid' 
+          ? (Math.random() < 0.6 ? '#78716c' : '#a8a29e') // stone grey/brown
+          : (Math.random() < 0.3 ? '#ffffff' : color);
+          
+        state.particles.push({
+          id: `p_${Math.random()}`,
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 20 + Math.floor(Math.random() * 20),
+          maxLife: 40,
+          color: particleColor,
+          size: Math.random() < 0.25 ? (type === 'asteroid' ? 5 : 4) : 2
+        });
+      }
     }
   };
 
@@ -688,8 +730,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       y,
       vx: 0,
       vy: 0,
-      life: 35,
-      maxLife: 35,
+      life: 40,
+      maxLife: 40,
       color: 'rgba(168, 85, 247, 0.45)', // Emissive purple
       size: 1,
       isShockwave: true,
@@ -703,18 +745,38 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       y,
       vx: 0,
       vy: 0,
-      life: 20,
-      maxLife: 20,
-      color: 'rgba(255, 255, 255, 0.65)',
+      life: 25,
+      maxLife: 25,
+      color: 'rgba(255, 255, 255, 0.70)',
       size: 1,
       isShockwave: true,
-      maxRadius: 400
+      maxRadius: 450
     });
 
-    // 3. Fast multicolored debris and sparkle fragments
-    for (let i = 0; i < count; i++) {
+    // 3. Bilowing fire/smoke particles that expand and fade
+    const fireCount = Math.floor(count * 0.45);
+    for (let i = 0; i < fireCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.5 + Math.random() * 8.5;
+      const speed = 0.5 + Math.random() * 3.5;
+      state.particles.push({
+        id: `p_fire_${Math.random()}`,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 35 + Math.floor(Math.random() * 25),
+        maxLife: 60,
+        color: '#ffffff', // color is dynamic based on life in renderer
+        size: 5 + Math.random() * 6,
+        isFire: true
+      });
+    }
+
+    // 4. Fast multicolored debris and sparkle fragments
+    const sparkCount = count - fireCount;
+    for (let i = 0; i < sparkCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2.0 + Math.random() * 9.0;
       const particleColor = Math.random() < 0.5 
         ? '#c084fc' // Light violet
         : (Math.random() < 0.75 ? '#f472b6' : '#ffffff'); // Pink or white
@@ -725,8 +787,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 25 + Math.floor(Math.random() * 30),
-        maxLife: 55,
+        life: 20 + Math.floor(Math.random() * 30),
+        maxLife: 50,
         color: particleColor,
         size: Math.random() < 0.25 ? 6 : (Math.random() < 0.65 ? 3 : 1.5)
       });
@@ -752,6 +814,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         };
       }
     }
+
+    // Trigger purple screen flash
+    screenFlash.current = {
+      duration: 15,
+      maxDuration: 15,
+      color: 'rgba(192, 132, 252, 0.25)'
+    };
 
     // Spawn purple splash explosion particles & shockwaves
     spawnSplashExplosion(bomb.x, bomb.y, '#c084fc', 70);
@@ -782,14 +851,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             killer.kills = (killer.kills || 0) + 1;
             if (killer.isPlayer) {
               state.score += ship.stats.shield * 10;
-              onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Space Bomb!`);
+              onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Space Bomb!`, faction);
             }
           }
 
           if (ship.isPlayer) {
             setIsDead(true);
             const killerName = killer ? killer.name : 'Unknown Enemy';
-            onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
+            const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
+            onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
           } else {
             const deadShip = ship;
             setTimeout(() => {
@@ -822,7 +892,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ast.hp -= splashDamage;
 
         if (ast.hp <= 0) {
-          spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
+          spawnExplosion(ast.x, ast.y, '#9ca3af', 15, 'asteroid');
           if (ast.size > 1) {
             const newSize = ast.size - 1;
             state.asteroids.push(
@@ -1229,7 +1299,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const now = Date.now();
 
         // 1. Self-preservation check: escape if very low HP
-        if (ship.hp < ship.maxHp * 0.35) {
+        // Differed thresholds by ship class
+        const isLourd = ['millennium_falcon', 'solar_sailer', 'x_wing'].includes(ship.defId);
+        const isIntercepteur = ['tie_vader', 'jedi_interceptor', 'tie_n2', 'delta_7'].includes(ship.defId);
+        const escapeHpThreshold = isLourd ? 0.20 : (isIntercepteur ? 0.40 : 0.30);
+
+        if (ship.hp < ship.maxHp * escapeHpThreshold) {
           // Find nearest threat of opposite faction
           let nearestThreat: SpaceShip | null = null;
           let threatDist = 900;
@@ -1249,13 +1324,33 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           if (nearestThreat) {
             ship.aiState = 'escape';
             ship.targetId = nearestThreat.id;
+            
+            // Cry for help! Force a nearby ally in patrol/formation to come support
+            let nearbyAlly: SpaceShip | null = null;
+            let bestAllyDist = 1200;
+            for (const ally of state.ships) {
+              if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > ally.maxHp * 0.5 && (ally.aiState === 'patrol' || ally.aiState === 'formation')) {
+                const adx = ally.x - ship.x;
+                const ady = ally.y - ship.y;
+                const adist = Math.sqrt(adx * adx + ady * ady);
+                if (adist < bestAllyDist) {
+                  bestAllyDist = adist;
+                  nearbyAlly = ally;
+                }
+              }
+            }
+            if (nearbyAlly) {
+              nearbyAlly.aiState = 'support';
+              nearbyAlly.targetId = nearestThreat.id;
+              nearbyAlly.aiDecisionTimer = 45; // lock support choice for ~1.5s
+            }
           } else {
             ship.aiState = 'patrol';
             ship.targetId = undefined;
           }
         } else {
-          // 2. Teamwork strategy check: check if a nearby ally needs help
-          // Interceptors (Kylo, Vader, Delta-7, Interceptor, TIE N2) are solo hunters (20% support rate), others are cooperative wingmen (75% support rate)
+          // 2. Teamwork / Wingman strategy check: check if a nearby ally needs help
+          // Interceptors are solo hunters (20% support rate), others are cooperative wingmen (75% support rate)
           const isSoloHunter = ['tie_vader', 'tie_n2', 'delta_7', 'jedi_interceptor', 'tie_silencer'].includes(ship.defId);
           const supportProbability = isSoloHunter ? 0.2 : 0.75;
           let foundAllyToSupport = false;
@@ -1265,7 +1360,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             let allyDist = 800;
 
             for (const ally of state.ships) {
-              if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > 0 && ally.hp < ally.maxHp * 0.45) {
+              if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > 0 && ally.hp < ally.maxHp * 0.5) {
                 const dx = ally.x - ship.x;
                 const dy = ally.y - ship.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1277,7 +1372,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             }
 
             if (distressedAlly) {
-              // Target the enemy that is closest to our ally (who is attacking them)
+              // Target the enemy closest to our distressed ally
               let attackerOfAlly: SpaceShip | null = null;
               let attackerDist = 800;
 
@@ -1295,16 +1390,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
               if (attackerOfAlly) {
                 ship.aiState = 'support';
-                ship.targetId = (attackerOfAlly as SpaceShip).id; // Target the enemy chasing our ally
+                ship.targetId = attackerOfAlly.id;
                 foundAllyToSupport = true;
               }
             }
           }
 
-          // 3. Hunt/Chase if not supporting
+          // 3. Squadron formation & coordinated hunt
           if (!foundAllyToSupport) {
             let nearestTarget: SpaceShip | null = null;
-            let minDist = 1400; // slightly longer scan range
+            let minDist = 1350;
 
             for (const t of state.ships) {
               if (t.faction !== ship.faction && t.hp > 0) {
@@ -1319,16 +1414,50 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             }
 
             if (nearestTarget) {
-              ship.targetId = (nearestTarget as SpaceShip).id;
+              ship.targetId = nearestTarget.id;
               ship.aiState = 'chase';
+
+              // Coordinated Wingman action: if this is a squad leader, notify wingmen to join chase
+              if (ship.isSquadLeader) {
+                state.ships.forEach(wingman => {
+                  if (wingman.squadLeaderId === ship.id && wingman.hp > wingman.maxHp * 0.4 && wingman.aiState === 'formation') {
+                    if (Math.random() < 0.65) {
+                      wingman.aiState = 'chase';
+                      wingman.targetId = nearestTarget!.id;
+                      wingman.aiDecisionTimer = 30 + Math.floor(Math.random() * 20); // lock decision
+                    }
+                  }
+                });
+              }
             } else {
-              ship.targetId = undefined;
-              ship.aiState = 'patrol';
+              // No enemy nearby -> fly in formation if we have a leader
+              if (ship.squadLeaderId) {
+                const leader = state.ships.find(s => s.id === ship.squadLeaderId && s.hp > 0);
+                if (leader) {
+                  ship.aiState = 'formation';
+                  ship.targetId = leader.id;
+                } else {
+                  // Leader dead, find another leader or become leader
+                  const otherLeader = state.ships.find(s => s.faction === ship.faction && s.isSquadLeader && s.hp > 0);
+                  if (otherLeader) {
+                    ship.squadLeaderId = otherLeader.id;
+                    ship.aiState = 'formation';
+                    ship.targetId = otherLeader.id;
+                  } else {
+                    ship.isSquadLeader = true;
+                    ship.squadLeaderId = undefined;
+                    ship.aiState = 'patrol';
+                    ship.targetId = undefined;
+                  }
+                }
+              } else {
+                ship.aiState = 'patrol';
+                ship.targetId = undefined;
+              }
             }
           }
         }
       }
-
       // AI Execution state
       const now = Date.now();
 
@@ -1366,6 +1495,45 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       }
 
+      // Active threat targeting detection (chased by enemy)
+      let isChasedByEnemy = false;
+      let activeChaser: SpaceShip | null = null;
+      for (const enemy of state.ships) {
+        if (enemy.faction !== ship.faction && enemy.hp > 0 && enemy.targetId === ship.id) {
+          const edx = enemy.x - ship.x;
+          const edy = enemy.y - ship.y;
+          const edist = Math.sqrt(edx * edx + edy * edy);
+          if (edist < 800) {
+            // Check if enemy is looking at us
+            const angleToShip = Math.atan2(-edy, -edx);
+            let angleDiff = angleToShip - enemy.angle;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            if (Math.abs(angleDiff) < 0.35) {
+              isChasedByEnemy = true;
+              activeChaser = enemy;
+              break;
+            }
+          }
+        }
+      }
+      
+      ship.isChased = isChasedByEnemy;
+      
+      if (isChasedByEnemy && activeChaser) {
+        // Actively chased! Trigger immediate defensive dash/shield if available
+        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= 7000) {
+          triggerSpecialMove(ship);
+        } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
+          triggerSpeedBoost(ship);
+          // Apply quick side dodge force
+          const dodgeAngle = activeChaser.angle + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+          ship.vx += Math.cos(dodgeAngle) * 4.0;
+          ship.vy += Math.sin(dodgeAngle) * 4.0;
+        }
+      }
+
+      // --- Execute AI States ---
       if (ship.aiState === 'chase' && ship.targetId) {
         const target = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
         if (target) {
@@ -1378,7 +1546,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
 
-          ship.angle += diff * 0.09; // slightly faster turn speed for better agility
+          // Zigzag evasive deviation if chased
+          let zigzagOffset = 0;
+          if (ship.isChased) {
+            if (!ship.zigzagTimer || ship.zigzagTimer <= 0) {
+              ship.zigzagDirection = -(ship.zigzagDirection || 1);
+              ship.zigzagTimer = 10 + Math.floor(Math.random() * 15);
+            }
+            ship.zigzagTimer -= 1;
+            zigzagOffset = Math.sin((ship.zigzagTimer) * 0.2) * 0.35 * (ship.zigzagDirection || 1);
+          }
+
+          ship.angle += (diff + zigzagOffset) * 0.09;
 
           // Speed Boost logic (5s reload)
           const lastBoost = ship.lastBoostTime || 0;
@@ -1477,7 +1656,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
 
-        ship.angle += diff * 0.08;
+        // Zigzag evasive deviation if chased
+        let zigzagOffset = 0;
+        if (ship.isChased) {
+          if (!ship.zigzagTimer || ship.zigzagTimer <= 0) {
+            ship.zigzagDirection = -(ship.zigzagDirection || 1);
+            ship.zigzagTimer = 10 + Math.floor(Math.random() * 15);
+          }
+          ship.zigzagTimer -= 1;
+          zigzagOffset = Math.sin(ship.zigzagTimer * 0.2) * 0.35 * (ship.zigzagDirection || 1);
+        }
+
+        ship.angle += (diff + zigzagOffset) * 0.08;
 
         // Flee speed: activate boost/dash immediately if threat is close
         const lastBoost = ship.lastBoostTime || 0;
@@ -1560,34 +1750,51 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         } else {
           ship.aiState = 'patrol';
         }
-      } else {
-        // Patrol / Group up
-        let formationLeader: SpaceShip | null = null;
-        let leaderDist = 500;
+      } else if (ship.aiState === 'formation' && ship.targetId) {
+        const leader = state.ships.find(s => s.id === ship.targetId && s.hp > 0);
+        if (leader) {
+          const angleOffset = ship.formationAngleOffset || 0;
+          const distOffset = ship.formationDistOffset || 120;
+          const targetX = leader.x + Math.cos(leader.angle + angleOffset) * distOffset;
+          const targetY = leader.y + Math.sin(leader.angle + angleOffset) * distOffset;
 
-        for (const ally of state.ships) {
-          if (ally.faction === ship.faction && ally.id !== ship.id && ally.hp > 0 && ally.aiState === 'patrol') {
-            const dx = ally.x - ship.x;
-            const dy = ally.y - ship.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < leaderDist && ally.id < ship.id) {
-              leaderDist = dist;
-              formationLeader = ally;
+          const dx = targetX - ship.x;
+          const dy = targetY - ship.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 70) {
+            // Perfect formation sync
+            ship.angle += (leader.angle - ship.angle) * 0.12;
+            ship.vx = leader.vx * 0.95;
+            ship.vy = leader.vy * 0.95;
+            
+            // Random coordinated laser fire if leader is fighting
+            if (leader.aiState === 'chase' && Math.random() < 0.025 && now - ship.lastShotTime >= ship.stats.rate * 1.5) {
+              fireLaser(ship);
+              ship.lastShotTime = now;
             }
-          }
-        }
+          } else {
+            const targetAngle = Math.atan2(dy, dx);
+            let diff = targetAngle - ship.angle;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            ship.angle += diff * 0.08;
 
+            const cruiseSpeed = ship.stats.speed * 0.75;
+            const accelSpeed = cruiseSpeed * 0.08 * (dist > 300 ? 1.5 : 1.0);
+            ship.vx += Math.cos(ship.angle) * accelSpeed;
+            ship.vy += Math.sin(ship.angle) * accelSpeed;
+          }
+        } else {
+          ship.aiState = 'patrol';
+        }
+      } else {
+        // Patrol
         let targetX = WORLD_SIZE / 2;
         let targetY = WORLD_SIZE / 2;
 
-        if (formationLeader) {
-          const offsetDist = 120;
-          const offsetAngle = (formationLeader as SpaceShip).angle + Math.PI + (ship.id.charCodeAt(0) % 2 === 0 ? 0.6 : -0.6);
-          targetX = (formationLeader as SpaceShip).x + Math.cos(offsetAngle) * offsetDist;
-          targetY = (formationLeader as SpaceShip).y + Math.sin(offsetAngle) * offsetDist;
-        } else {
-          targetX = WORLD_SIZE / 2 + (ship.id.charCodeAt(0) % 8 - 4) * 250;
-        }
+        targetX = WORLD_SIZE / 2 + (ship.id.charCodeAt(0) % 8 - 4) * 350;
+        targetY = WORLD_SIZE / 2 + (ship.id.charCodeAt(0) % 6 - 3) * 350;
 
         const dx = targetX - ship.x;
         const dy = targetY - ship.y;
@@ -1731,7 +1938,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               }
               
               // Spawn reflections particles
-              spawnExplosion(laser.x, laser.y, laser.color, 12);
+              spawnExplosion(laser.x, laser.y, laser.color, 12, 'beam');
               
               if (ship.isPlayer) {
                 screenShake.current = { duration: 12, amplitude: 5 };
@@ -1750,7 +1957,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ship.lastHitTime = Date.now();
             
             // Spark particle splash
-            spawnExplosion(laser.x, laser.y, laser.color, 12);
+            spawnExplosion(laser.x, laser.y, laser.color, 15, 'beam');
             
             if (ship.isPlayer) {
               screenShake.current = { duration: 20, amplitude: 8 };
@@ -1768,14 +1975,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
-                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Super Beam!`);
+                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Super Beam!`, faction);
                 }
               }
 
               if (ship.isPlayer) {
                 setIsDead(true);
                 const killerName = killer ? killer.name : 'Unknown Enemy';
-                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
+                const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
+                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -1802,7 +2010,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             hit = true;
 
             // Spark particle splash
-            spawnExplosion(laser.x, laser.y, laser.color, 6);
+            spawnExplosion(laser.x, laser.y, laser.color, 8, 'normal');
 
             if (ship.isPlayer) {
               screenShake.current = { duration: 15, amplitude: 6 };
@@ -1820,14 +2028,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
-                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name}!`);
+                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name}!`, faction);
                 }
               }
 
               if (ship.isPlayer) {
                 setIsDead(true);
                 const killerName = killer ? killer.name : 'Unknown Enemy';
-                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
+                const killerFaction = killer ? killer.faction : (faction === 'light' ? 'dark' : 'light');
+                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`, killerFaction);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -1861,7 +2070,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const dy = ast.y - laser.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const hitRadius = ast.size * 14;
-
         if (dist < hitRadius) {
           if (laser.isBomb) {
             detonateBomb(laser);
@@ -1870,10 +2078,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           } else if (laser.isSuperBeam) {
             // Damaging asteroid but don't destroy beam (no hit = true)
             ast.hp -= laser.damage;
-            spawnExplosion(laser.x, laser.y, '#78350f', 5);
+            spawnExplosion(laser.x, laser.y, '#78350f', 5, 'asteroid');
 
             if (ast.hp <= 0) {
-              spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
+              spawnExplosion(ast.x, ast.y, '#9ca3af', 15, 'asteroid');
               
               if (ast.size > 1) {
                 const newSize = ast.size - 1;
@@ -1905,10 +2113,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ast.hp -= laser.damage;
             hit = true;
 
-            spawnExplosion(laser.x, laser.y, '#78350f', 5);
+            spawnExplosion(laser.x, laser.y, '#78350f', 5, 'asteroid');
 
             if (ast.hp <= 0) {
-              spawnExplosion(ast.x, ast.y, '#9ca3af', 15);
+              spawnExplosion(ast.x, ast.y, '#9ca3af', 15, 'asteroid');
               
               if (ast.size > 1) {
                 const newSize = ast.size - 1;
@@ -1977,7 +2185,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
             if (ship.isPlayer) {
               setIsDead(true);
-              onKillFeed?.(`💀 Pilot ${playerName} crashed into an asteroid!`);
+              onKillFeed?.(`💀 Pilot ${playerName} crashed into an asteroid!`, 'system');
             } else {
               // Spawn explosion for AI
               spawnExplosion(ship.x, ship.y, '#eab308', 35);
@@ -2536,6 +2744,52 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ctx.beginPath();
         ctx.arc(sx, sy, currentRadius * 0.95, 0, Math.PI * 2);
         ctx.fill();
+      } else if (p.isFire) {
+        // Draw fire/smoke expanding particle
+        ctx.save();
+        ctx.globalAlpha = lifePct * 0.85;
+        
+        // Dynamic color transition based on lifePct
+        let fireColor = '#4b5563'; // gray smoke fallback
+        if (lifePct > 0.75) {
+          fireColor = '#ffffff'; // white-hot core
+        } else if (lifePct > 0.5) {
+          fireColor = '#fef08a'; // bright yellow
+        } else if (lifePct > 0.3) {
+          fireColor = '#f97316'; // orange flame
+        } else if (lifePct > 0.15) {
+          fireColor = '#ef4444'; // red-violet outer flame
+        } else {
+          fireColor = '#374151'; // dark smoke
+        }
+        
+        ctx.fillStyle = fireColor;
+        
+        // Size grows and then shrinks
+        const currentSize = p.size * (1.0 + Math.sin((1.0 - lifePct) * Math.PI) * 1.5);
+        ctx.beginPath();
+        ctx.arc(sx, sy, currentSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (p.isLightning) {
+        // Draw jagged electric bolt
+        ctx.save();
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.size * lifePct;
+        ctx.globalAlpha = lifePct;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        
+        let cx = sx;
+        let cy = sy;
+        const segments = 3;
+        for (let j = 0; j < segments; j++) {
+          cx += (Math.random() - 0.5) * 16;
+          cy += (Math.random() - 0.5) * 16;
+          ctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+        ctx.restore();
       } else {
         // Draw normal square pixel particle
         ctx.fillStyle = p.color;
@@ -2573,7 +2827,62 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
     });
 
-    ctx.restore();
+    ctx.restore(); // Restore camera translation/rotation
+
+    // 13. Draw Hyperspace Warp Lines (Viewport relative overlay)
+    if (playerWarpTimer.current > 0) {
+      const pPct = playerWarpTimer.current / 30; // 30 frames total
+      ctx.save();
+      ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(239, 68, 68, 0.85)';
+      ctx.lineWidth = 3;
+      const numLines = 45;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      
+      // Radiant starfield tunnel lines
+      for (let i = 0; i < numLines; i++) {
+        const angle = (i / numLines) * Math.PI * 2 + (pPct * Math.PI * 0.4);
+        const lengthMultiplier = 1.0 - pPct;
+        const innerR = 40 + lengthMultiplier * 140;
+        const outerR = innerR + 120 + lengthMultiplier * 400;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX + Math.cos(angle) * innerR, centerY + Math.sin(angle) * innerR);
+        ctx.lineTo(centerX + Math.cos(angle) * outerR, centerY + Math.sin(angle) * outerR);
+        ctx.stroke();
+      }
+      
+      // Draw concentric portal circles contracting/expanding
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, (1.0 - pPct) * 160, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Center warp portal glow
+      const portalRadius = (1.0 - pPct) * 140;
+      const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, portalRadius);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.2, faction === 'light' ? 'rgba(56, 189, 248, 0.9)' : 'rgba(239, 68, 68, 0.9)');
+      grad.addColorStop(0.7, faction === 'light' ? 'rgba(14, 165, 233, 0.45)' : 'rgba(225, 29, 72, 0.45)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, portalRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.restore();
+    }
+
+    // 14. Draw Screen Flash Overlay
+    if (screenFlash.current.duration > 0) {
+      const fPct = screenFlash.current.duration / screenFlash.current.maxDuration;
+      ctx.save();
+      ctx.fillStyle = screenFlash.current.color;
+      ctx.globalAlpha = fPct;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
   };
 
   const handleReturn = () => {
