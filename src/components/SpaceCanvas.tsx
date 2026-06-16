@@ -28,7 +28,7 @@ const WORLD_SIZE = 5000;
 // whole (zoom-inflated) viewport, so the starfield fills the enlarged map.
 const STAR_TILE = 3000;
 const INITIAL_ASTEROIDS = 45;
-const LASER_SPEED = 13;
+const LASER_SPEED = 22;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
 // Discrete aim grid for keyboard / rotation aiming: 15 equally-spaced firing
@@ -1353,11 +1353,23 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const accel = 0.32 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
 
-      // Poll Gamepad inputs if a controller is connected
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      // gp1 (Player 1) is gamepads[0], gp2 (Player 2) is gamepads[1]
-      const gp = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 0) : null;
-      const gp2 = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 1) : null;
+      // Poll Gamepad inputs if a controller is connected (robust filtering to assign gamepads dynamically)
+      const gamepads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(g => g !== null) : [];
+      let gp: Gamepad | null = null;
+      let gp2: Gamepad | null = null;
+
+      if (gamepads.length >= 2) {
+        gp = gamepads[0];
+        gp2 = gamepads[1];
+      } else if (gamepads.length === 1) {
+        if (isTwoPlayers) {
+          // In split-screen mode, if only one controller is connected, assign it to Player 2
+          // since Player 1 uses mouse + keyboard
+          gp2 = gamepads[0];
+        } else {
+          gp = gamepads[0];
+        }
+      }
       
       let gpAx = 0;
       let gpAy = 0;
@@ -1424,21 +1436,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ax = gpAx * accel * controlSign;
         ay = gpAy * accel * controlSign;
       } else {
-        // Keyboard ZQSD movement (layout-aware)
+        // Keyboard ZQSD movement (layout-aware, ignore ArrowUp/Down/Left/Right in 2-player mode to avoid P2 conflict)
         const moveUpPressed = keyboardLayout.current === 'azerty'
-          ? (keysPressed.current['KeyZ'] || keysPressed.current['ArrowUp'])
-          : (keysPressed.current['KeyW'] || keysPressed.current['ArrowUp']);
+          ? (keysPressed.current['KeyZ'] || (!isTwoPlayers && keysPressed.current['ArrowUp']))
+          : (keysPressed.current['KeyW'] || (!isTwoPlayers && keysPressed.current['ArrowUp']));
 
         if (moveUpPressed) {
           ay = -accel * controlSign;
         }
-        if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
+        if (keysPressed.current['KeyS'] || (!isTwoPlayers && keysPressed.current['ArrowDown'])) {
           ay = accel * controlSign;
         }
-        if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
+        if (keysPressed.current['KeyA'] || (!isTwoPlayers && keysPressed.current['ArrowLeft'])) {
           ax = -accel * controlSign;
         }
-        if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
+        if (keysPressed.current['KeyD'] || (!isTwoPlayers && keysPressed.current['ArrowRight'])) {
           ax = accel * controlSign;
         }
       }
@@ -1709,25 +1721,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ax2 = gpAx2 * accel2 * controlSign2;
         ay2 = gpAy2 * accel2 * controlSign2;
       } else {
-        // Player 2 aims by stepping through the 60-direction grid (15 per quarter,
-        // 6° apart) with ArrowLeft/Right, so diagonal shooting is fully available.
-        // ArrowUp thrusts forward in the current aim direction.
-        const p2ControlSign = faction2 === 'light' ? -1 : 1;
-        if (p2AimCooldown.current > 0) p2AimCooldown.current -= 1;
-        if ((keysPressed.current['ArrowLeft'] || keysPressed.current['ArrowRight']) && p2AimCooldown.current <= 0) {
-          const dir = keysPressed.current['ArrowLeft'] ? -1 : 1;
-          player2.angle = snapAim(player2.angle) + dir * AIM_STEP * p2ControlSign;
-          p2AimCooldown.current = 6; // ~10 steps/sec when held
-        }
-
+        // Player 2 Keyboard direct movement (Arrow keys, matching Player 1's ZQSD style)
         if (keysPressed.current['ArrowUp']) {
-          ax2 = Math.cos(player2.angle) * accel2;
-          ay2 = Math.sin(player2.angle) * accel2;
+          ay2 = -accel2 * controlSign2;
         }
         if (keysPressed.current['ArrowDown']) {
-          // Brake/Slow down
-          player2.vx *= 0.88;
-          player2.vy *= 0.88;
+          ay2 = accel2 * controlSign2;
+        }
+        if (keysPressed.current['ArrowLeft']) {
+          ax2 = -accel2 * controlSign2;
+        }
+        if (keysPressed.current['ArrowRight']) {
+          ax2 = accel2 * controlSign2;
         }
       }
 
@@ -1857,6 +1862,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           player2.angle = snapAim(Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0));
           aimed2 = true;
         }
+      }
+
+      // If playing on keyboard (no gamepad active) and moving, point the nose in the movement direction
+      if (!aimed2 && (ax2 !== 0 || ay2 !== 0)) {
+        player2.angle = snapAim(Math.atan2(ay2, ax2));
+        aimed2 = true;
       }
 
       // Engine particles
@@ -3009,7 +3020,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           vx,
           vy,
           damage: ship.stats.power,
-          rangeRemaining: ship.stats.range,
+          rangeRemaining: ship.stats.range * 1.5, // 1.5x range for better long range combat
           color: ship.color
         },
         {
@@ -3021,7 +3032,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           vx,
           vy,
           damage: ship.stats.power,
-          rangeRemaining: ship.stats.range,
+          rangeRemaining: ship.stats.range * 1.5,
           color: ship.color
         }
       );
@@ -3040,7 +3051,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         vx,
         vy,
         damage: ship.stats.power,
-        rangeRemaining: ship.stats.range,
+        rangeRemaining: ship.stats.range * 1.5,
         color: ship.color
       });
     }
