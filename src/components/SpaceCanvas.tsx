@@ -1443,6 +1443,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       }
 
+      // Snap movement direction to the 60-direction grid (15 angles per quarter)
+      if (ax !== 0 || ay !== 0) {
+        const mag = Math.hypot(ax, ay);
+        const snappedMoveAngle = snapAim(Math.atan2(ay, ax));
+        ax = Math.cos(snappedMoveAngle) * mag;
+        ay = Math.sin(snappedMoveAngle) * mag;
+      }
+
       // Apply forces
       player.vx += ax;
       player.vy += ay;
@@ -1559,18 +1567,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       // keyboard travel direction > last mouse position.
       let aimed = false;
 
-      // 1. Gamepad right stick — true twin-stick free aim (any angle).
+      // 1. Gamepad right stick — twin-stick free aim (15 angles per quarter).
       if (gp) {
         const rx = gp.axes[2] || 0;
         const ry = gp.axes[3] || 0;
         const rightStickDist = Math.sqrt(rx * rx + ry * ry);
         if (rightStickDist > 0.18) {
-          player.angle = Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0);
+          player.angle = snapAim(Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0));
           aimed = true;
         }
       }
 
-      // 2. Mouse / trackpad — if it moved recently, it owns the aim (any angle).
+      // 2. Mouse / trackpad — if it moved recently, it owns the aim (15 angles per quarter).
       const mouseRecentlyMoved = Date.now() - lastMouseMove.current < 1500;
       if (!aimed && mouseRecentlyMoved) {
         const canvas = canvasRef.current;
@@ -1580,14 +1588,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const dx = mousePos.current.x - screenCenterX;
           const dy = mousePos.current.y - screenCenterY;
           // Light side screen is rotated 180°, so rotate the world target angle to match.
-          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+          player.angle = snapAim(Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0));
           aimed = true;
         }
       }
 
-      // 3. Gamepad left stick movement direction (move-to-face).
+      // 3. Gamepad left stick movement direction (move-to-face, 15 angles per quarter).
       if (!aimed && gp && (gpAx !== 0 || gpAy !== 0)) {
-        player.angle = Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0);
+        player.angle = snapAim(Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0));
         aimed = true;
       }
 
@@ -1598,7 +1606,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         aimed = true;
       }
 
-      // 5. Fallback: aim at the last known mouse position.
+      // 5. Fallback: aim at the last known mouse position (15 angles per quarter).
       if (!aimed) {
         const canvas = canvasRef.current;
         if (canvas) {
@@ -1606,7 +1614,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const screenCenterY = canvas.height / 2;
           const dx = mousePos.current.x - screenCenterX;
           const dy = mousePos.current.y - screenCenterY;
-          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+          player.angle = snapAim(Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0));
         }
       }
 
@@ -1723,6 +1731,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       }
 
+      // Snap movement direction to the 60-direction grid (15 angles per quarter)
+      if (ax2 !== 0 || ay2 !== 0) {
+        const mag2 = Math.hypot(ax2, ay2);
+        const snappedMoveAngle2 = snapAim(Math.atan2(ay2, ax2));
+        ax2 = Math.cos(snappedMoveAngle2) * mag2;
+        ay2 = Math.sin(snappedMoveAngle2) * mag2;
+      }
+
       // Apply forces
       player2.vx += ax2;
       player2.vy += ay2;
@@ -1826,7 +1842,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player2.y = Math.max(50, Math.min(WORLD_SIZE - 50, player2.y));
       }
 
-      // Aiming angle for Player 2
+      // Aiming angle for Player 2 (15 angles per quarter)
       let aimed2 = false;
       if (gp2) {
         const rx2 = gp2.axes[2] || 0;
@@ -1835,10 +1851,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const rightStickDist = Math.sqrt(rx2 * rx2 + ry2 * ry2);
 
         if (rightStickDist > rightDeadzone) {
-          player2.angle = Math.atan2(ry2, rx2) + (faction2 === 'light' ? Math.PI : 0);
+          player2.angle = snapAim(Math.atan2(ry2, rx2) + (faction2 === 'light' ? Math.PI : 0));
           aimed2 = true;
         } else if (gpAx2 !== 0 || gpAy2 !== 0) {
-          player2.angle = Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0);
+          player2.angle = snapAim(Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0));
           aimed2 = true;
         }
       }
