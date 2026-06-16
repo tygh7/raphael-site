@@ -121,6 +121,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const lastMouseMove = useRef(0);
   // Repeat cooldown (frames) for Player 2's discrete grid rotation aiming.
   const p2AimCooldown = useRef(0);
+  const p2ManualAngle = useRef<number | null>(null);
 
   // Local game states to sync with React UI
   const [hud, setHud] = useState({
@@ -586,8 +587,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       };
       game.current.player2Ship = player2;
       game.current.ships.push(player2);
+      p2ManualAngle.current = null;
     } else {
       game.current.player2Ship = null;
+      p2ManualAngle.current = null;
     }
 
     game.current.lasers = [];
@@ -1877,6 +1880,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player2.vx = 0;
         player2.vy = 0;
         player2.angle = faction2 === 'light' ? Math.PI / 2 : -Math.PI / 2;
+        p2ManualAngle.current = null;
 
         spawnExplosion(player2.x, player2.y, player2.color, 30);
         screenShake2.current = { duration: 25, amplitude: 12 };
@@ -1899,6 +1903,33 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           aimed2 = true;
         } else if (gpAx2 !== 0 || gpAy2 !== 0) {
           targetAngle2 = Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0);
+          aimed2 = true;
+        }
+      }
+
+      // 2. Keyboard aiming rotation (H/Numpad4 to rotate anti-clockwise, J/Numpad6 to rotate clockwise)
+      if (keysPressed.current['KeyH'] || keysPressed.current['Numpad4']) {
+        if (p2ManualAngle.current === null) {
+          p2ManualAngle.current = player2.angle;
+        }
+        p2ManualAngle.current = snapAim(p2ManualAngle.current - AIM_STEP);
+        targetAngle2 = p2ManualAngle.current;
+        aimed2 = true;
+      } else if (keysPressed.current['KeyJ'] || keysPressed.current['Numpad6']) {
+        if (p2ManualAngle.current === null) {
+          p2ManualAngle.current = player2.angle;
+        }
+        p2ManualAngle.current = snapAim(p2ManualAngle.current + AIM_STEP);
+        targetAngle2 = p2ManualAngle.current;
+        aimed2 = true;
+      }
+
+      // If we are not actively pressing rotation keys, but a manual angle is set:
+      if (!aimed2 && p2ManualAngle.current !== null) {
+        if (ax2 !== 0 || ay2 !== 0) {
+          p2ManualAngle.current = null;
+        } else {
+          targetAngle2 = p2ManualAngle.current;
           aimed2 = true;
         }
       }
@@ -4125,7 +4156,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         {!isTwoPlayers ? (
           <span>Press <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ESC</kbd> to Pause | Move: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">ZQSD</kbd> | Fire: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">LEFT CLICK / A</kbd> | Bomb: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">E</kbd> | Boost: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">R</kbd> | Special: <kbd className="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">W</kbd></span>
         ) : (
-          <span>P1 (ZQSD, A-Shoot, E-Bomb, R-Boost, W-Special) | P2 (Arrows, Space-Shoot, Comma-Bomb, Period-Boost, Slash-Special)</span>
+          <span>P1 (ZQSD, A-Shoot, E-Bomb, R-Boost, W-Special) | P2 (Arrows, H/J-Aim, Space-Shoot, Comma-Bomb, Period-Boost, Slash-Special)</span>
         )}
       </div>
 
