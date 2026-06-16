@@ -20,6 +20,9 @@ interface SpaceCanvasProps {
 }
 
 const WORLD_SIZE = 8000;
+// Parallax star pattern repeats every STAR_TILE px and is tiled across the
+// whole (zoom-inflated) viewport, so the starfield fills the enlarged map.
+const STAR_TILE = 3000;
 const INITIAL_ASTEROIDS = 80;
 const LASER_SPEED = 9.5;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
@@ -263,10 +266,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   useEffect(() => {
     const stars: { x: number; y: number; size: number; speed: number; color: string }[] = [];
     const colors = ['#ffffff', '#ffffff', '#eab308', '#38bdf8', '#ef4444', '#ca8a04', '#a855f7'];
-    for (let i = 0; i < 450; i++) {
+    for (let i = 0; i < 550; i++) {
       stars.push({
-        x: Math.random() * 3000,
-        y: Math.random() * 3000,
+        x: Math.random() * STAR_TILE,
+        y: Math.random() * STAR_TILE,
         size: Math.random() < 0.25 ? 3.0 : 1.5,
         speed: Math.random() < 0.35 ? 0.3 : 0.12,
         color: colors[Math.floor(Math.random() * colors.length)]
@@ -274,11 +277,19 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
     starsBackground.current = stars;
 
+    // Spread nebulas across the full 8000x8000 world so the enlarged map
+    // stays visually populated out to the corners.
     nebulas.current = [
       { x: 1500, y: 1500, r: 800, color: 'rgba(99, 102, 241, 0.05)' },
       { x: 5500, y: 2500, r: 1000, color: 'rgba(239, 68, 68, 0.04)' },
       { x: 3000, y: 6000, r: 900, color: 'rgba(16, 185, 129, 0.04)' },
-      { x: 6500, y: 5500, r: 850, color: 'rgba(14, 165, 233, 0.05)' }
+      { x: 6500, y: 5500, r: 850, color: 'rgba(14, 165, 233, 0.05)' },
+      { x: 1000, y: 4200, r: 950, color: 'rgba(168, 85, 247, 0.045)' },
+      { x: 7200, y: 1200, r: 800, color: 'rgba(14, 165, 233, 0.04)' },
+      { x: 4000, y: 4000, r: 1100, color: 'rgba(99, 102, 241, 0.04)' },
+      { x: 7000, y: 7000, r: 900, color: 'rgba(239, 68, 68, 0.04)' },
+      { x: 1500, y: 7200, r: 850, color: 'rgba(16, 185, 129, 0.04)' },
+      { x: 4500, y: 1000, r: 750, color: 'rgba(168, 85, 247, 0.04)' }
     ];
   }, []);
 
@@ -2136,8 +2147,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 3.2;
           }
 
-          // Loose aim cone but they shoot much less frequently (easy to dodge)
-          if (dist < ship.stats.range && Math.abs(diff) < 0.32 && now - ship.lastShotTime >= ship.stats.rate * (2.6 + Math.random() * 1.6)) {
+          // Loose aim cone, very sporadic trigger discipline — bots hold fire
+          // most of the time so they feel relaxed instead of trigger-happy.
+          if (dist < ship.stats.range && Math.abs(diff) < 0.28 && Math.random() < 0.35 && now - ship.lastShotTime >= ship.stats.rate * (5.5 + Math.random() * 3.5)) {
             fireLaser(ship);
             ship.lastShotTime = now;
           }
@@ -2218,7 +2230,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ship.vx += Math.cos(ship.angle) * accelSpeed;
         ship.vy += Math.sin(ship.angle) * accelSpeed;
 
-        if (threat && threatDist < 500 && Math.random() < 0.04 && now - ship.lastShotTime >= ship.stats.rate * 2) {
+        if (threat && threatDist < 500 && Math.random() < 0.015 && now - ship.lastShotTime >= ship.stats.rate * 4) {
           fireLaser(ship);
           ship.lastShotTime = now;
         }
@@ -2266,7 +2278,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             }
           }
 
-          if (dist < ship.stats.range && Math.abs(diff) < 0.45 && now - ship.lastShotTime >= ship.stats.rate * (1.1 + Math.random() * 0.5)) {
+          if (dist < ship.stats.range && Math.abs(diff) < 0.4 && Math.random() < 0.4 && now - ship.lastShotTime >= ship.stats.rate * (4.0 + Math.random() * 2.5)) {
             fireLaser(ship);
             ship.lastShotTime = now;
           }
@@ -2292,7 +2304,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             ship.vy = leader.vy * 0.95;
             
             // Random coordinated laser fire if leader is fighting
-            if (leader.aiState === 'chase' && Math.random() < 0.025 && now - ship.lastShotTime >= ship.stats.rate * 1.5) {
+            if (leader.aiState === 'chase' && Math.random() < 0.008 && now - ship.lastShotTime >= ship.stats.rate * 4) {
               fireLaser(ship);
               ship.lastShotTime = now;
             }
@@ -3132,9 +3144,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const offsetX = viewportX + viewportWidth / 2 - cameraX;
     const offsetY = viewportY + viewportHeight / 2 - cameraY;
 
+    // Expanded background region. The VIEW_ZOOM scale (<1) shrinks everything
+    // drawn here toward the viewport center, so painting only across the raw
+    // viewport leaves an un-covered black ring once the camera is zoomed out.
+    // We inflate the draw rect by the inverse zoom (the 180° faction rotation
+    // maps this rect onto itself, so no extra allowance is needed for it).
+    const invZoom = 1 / VIEW_ZOOM;
+    const padX = (viewportWidth * (invZoom - 1)) / 2 + 200;
+    const padY = (viewportHeight * (invZoom - 1)) / 2 + 200;
+    const bgX = viewportX - padX;
+    const bgY = viewportY - padY;
+    const bgW = viewportWidth + padX * 2;
+    const bgH = viewportHeight + padY * 2;
+
     // 1. Draw Space Void (Solid retro arcade black)
     ctx.fillStyle = '#000000';
-    ctx.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
+    ctx.fillRect(bgX, bgY, bgW, bgH);
 
     // 2. Draw Nebula clouds
     nebulas.current.forEach(neb => {
@@ -3151,18 +3176,22 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     });
 
     // 3. Draw Parallax Starfield (Chunky flashing Galaga colors with twinkling animation)
+    // Stars are generated within a STAR_TILE square and tiled across the whole
+    // expanded background so the field fills every corner regardless of zoom.
     starsBackground.current.forEach((star, index) => {
-      const sx = ((star.x - cameraX * star.speed) % viewportWidth + viewportWidth) % viewportWidth;
-      const sy = ((star.y - cameraY * star.speed) % viewportHeight + viewportHeight) % viewportHeight;
-      
+      const baseX = ((star.x - cameraX * star.speed) % STAR_TILE + STAR_TILE) % STAR_TILE;
+      const baseY = ((star.y - cameraY * star.speed) % STAR_TILE + STAR_TILE) % STAR_TILE;
+
       // Periodically twinkle: make ~15% of stars dim out or blink
       const twinklePhase = (Math.floor(Date.now() / 150) + index) % 7;
-      if (twinklePhase === 0) {
-        ctx.fillStyle = '#111827'; // very dim
-      } else {
-        ctx.fillStyle = star.color;
+      ctx.fillStyle = twinklePhase === 0 ? '#111827' : star.color;
+
+      // Repeat the tile to cover the full inflated background region.
+      for (let tx = bgX - STAR_TILE; tx < bgX + bgW; tx += STAR_TILE) {
+        for (let ty = bgY - STAR_TILE; ty < bgY + bgH; ty += STAR_TILE) {
+          ctx.fillRect(Math.floor(tx + baseX), Math.floor(ty + baseY), star.size, star.size);
+        }
       }
-      ctx.fillRect(Math.floor(viewportX + sx), Math.floor(viewportY + sy), star.size, star.size);
     });
 
     // 4. Draw North Base Area (Light Side Green glowing border)
@@ -3200,21 +3229,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
     ctx.lineWidth = 1;
     const gridSpacing = 160;
-    const startX = Math.floor(-offsetX / gridSpacing) * gridSpacing;
-    const endX = startX + viewportWidth + gridSpacing;
-    const startY = Math.floor(-offsetY / gridSpacing) * gridSpacing;
-    const endY = startY + viewportHeight + gridSpacing;
+    const startX = Math.floor((bgX - offsetX) / gridSpacing) * gridSpacing;
+    const endX = startX + bgW + gridSpacing;
+    const startY = Math.floor((bgY - offsetY) / gridSpacing) * gridSpacing;
+    const endY = startY + bgH + gridSpacing;
 
     for (let x = startX; x < endX; x += gridSpacing) {
       ctx.beginPath();
-      ctx.moveTo(x + offsetX, viewportY);
-      ctx.lineTo(x + offsetX, viewportY + viewportHeight);
+      ctx.moveTo(x + offsetX, bgY);
+      ctx.lineTo(x + offsetX, bgY + bgH);
       ctx.stroke();
     }
     for (let y = startY; y < endY; y += gridSpacing) {
       ctx.beginPath();
-      ctx.moveTo(viewportX, y + offsetY);
-      ctx.lineTo(viewportX + viewportWidth, y + offsetY);
+      ctx.moveTo(bgX, y + offsetY);
+      ctx.lineTo(bgX + bgW, y + offsetY);
       ctx.stroke();
     }
 
