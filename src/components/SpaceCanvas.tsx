@@ -1322,6 +1322,24 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const state = game.current;
     if (!state.playerShip) return;
 
+    // Poll Gamepad inputs (robust filtering to assign gamepads dynamically for both players)
+    const gamepads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(g => g !== null) : [];
+    let gp: Gamepad | null = null;
+    let gp2: Gamepad | null = null;
+
+    if (gamepads.length >= 2) {
+      gp = gamepads[0];
+      gp2 = gamepads[1];
+    } else if (gamepads.length === 1) {
+      if (isTwoPlayers) {
+        // In split-screen mode, if only one controller is connected, assign it to Player 2
+        // since Player 1 uses mouse + keyboard
+        gp2 = gamepads[0];
+      } else {
+        gp = gamepads[0];
+      }
+    }
+
     // --- 1. Screen Shake & Flash Decay ---
     if (screenShake.current.duration > 0) {
       screenShake.current.duration -= 1;
@@ -1352,24 +1370,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       let ay = 0;
       const accel = 0.32 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
-
-      // Poll Gamepad inputs if a controller is connected (robust filtering to assign gamepads dynamically)
-      const gamepads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(g => g !== null) : [];
-      let gp: Gamepad | null = null;
-      let gp2: Gamepad | null = null;
-
-      if (gamepads.length >= 2) {
-        gp = gamepads[0];
-        gp2 = gamepads[1];
-      } else if (gamepads.length === 1) {
-        if (isTwoPlayers) {
-          // In split-screen mode, if only one controller is connected, assign it to Player 2
-          // since Player 1 uses mouse + keyboard
-          gp2 = gamepads[0];
-        } else {
-          gp = gamepads[0];
-        }
-      }
       
       let gpAx = 0;
       let gpAy = 0;
@@ -1612,6 +1612,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         aimed = true;
       }
 
+      // 3.5. Auto-aim target lock on closest enemy if no gamepad right stick / mouse aim is active.
+      if (!aimed) {
+        let closestEnemy: SpaceShip | null = null;
+        let minDist = 1200; // max lock range
+        for (const s of state.ships) {
+          if (s.id === player.id) continue;
+          if (s.hp <= 0) continue;
+          if (s.faction === player.faction) continue;
+          const dist = Math.hypot(s.x - player.x, s.y - player.y);
+          if (dist < minDist) {
+            minDist = dist;
+            closestEnemy = s;
+          }
+        }
+
+        if (closestEnemy) {
+          targetAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+          aimed = true;
+        }
+      }
+
       // 4. Keyboard thrust direction — WASD/arrows fire along travel, snapped to
       // the 60-direction aim grid (15 per quarter). ax/ay are world-space here.
       if (!aimed && (ax !== 0 || ay !== 0)) {
@@ -1691,9 +1712,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       const accel2 = 0.32 * (isBoostActive2 ? 2.5 : 1.0);
       const controlSign2 = faction2 === 'light' ? -1 : 1;
 
-      // Poll Gamepad 2 inputs if connected
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      const gp2 = gamepads ? Array.from(gamepads).find((g, i) => g !== null && i === 1) : null;
+      // Use the globally resolved gp2 for Player 2
 
       let gpAx2 = 0;
       let gpAy2 = 0;
@@ -1880,6 +1899,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           aimed2 = true;
         } else if (gpAx2 !== 0 || gpAy2 !== 0) {
           targetAngle2 = Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0);
+          aimed2 = true;
+        }
+      }
+
+      // Auto-aim target lock on closest enemy if no gamepad manual aim is active.
+      if (!aimed2) {
+        let closestEnemy2: SpaceShip | null = null;
+        let minDist2 = 1200; // max lock range
+        for (const s of state.ships) {
+          if (s.id === player2.id) continue;
+          if (s.hp <= 0) continue;
+          if (s.faction === player2.faction) continue;
+          const dist = Math.hypot(s.x - player2.x, s.y - player2.y);
+          if (dist < minDist2) {
+            minDist2 = dist;
+            closestEnemy2 = s;
+          }
+        }
+
+        if (closestEnemy2) {
+          targetAngle2 = Math.atan2(closestEnemy2.y - player2.y, closestEnemy2.x - player2.x);
           aimed2 = true;
         }
       }
