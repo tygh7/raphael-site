@@ -21,7 +21,17 @@ interface SpaceCanvasProps {
 
 const WORLD_SIZE = 8000;
 const INITIAL_ASTEROIDS = 80;
-const LASER_SPEED = 11.0;
+const LASER_SPEED = 7.0;
+const VIEW_ZOOM = 0.7; // <1 zooms the camera out for a wider battlefield view
+
+// Lives scale with the ship's life bar: small shield -> 5 lives, big shield -> 8 lives.
+// Shield values currently span ~320 (TIE Fighter) to 950 (Millennium Falcon).
+const computeLivesFromShield = (shield: number): number => {
+  const MIN = 320;
+  const MAX = 950;
+  const t = Math.max(0, Math.min(1, (shield - MIN) / (MAX - MIN)));
+  return Math.round(5 + t * 3); // 5..8
+};
 
 const LIGHT_PILOT_NAMES = [
   'Wedge Antilles',
@@ -171,6 +181,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const [isMatchOver, setIsMatchOver] = useState(false);
   const matchTimeLeftRef = useRef(180);
 
+  // Lives system — each player gets 5..8 lives based on their starting ship's life bar
+  const [playerLives, setPlayerLives] = useState(() => computeLivesFromShield(getShipDefById(selectedShipId)?.stats.shield ?? 350));
+  const [playerLives2, setPlayerLives2] = useState(() => computeLivesFromShield(getShipDefById(selectedShipId2 || 'tie_fighter')?.stats.shield ?? 320));
+  const playerLivesRef = useRef(playerLives);
+  const playerLives2Ref = useRef(playerLives2);
+  playerLivesRef.current = playerLives;
+  playerLives2Ref.current = playerLives2;
+
   // Dynamic canvas size state
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 800, height: 600 });
 
@@ -299,6 +317,34 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     return () => clearInterval(timer);
   }, [isMatchOver]);
 
+  // Decrement a life each time a player is eliminated. When a player runs out of
+  // lives they can no longer respawn; the match ends once all humans are out.
+  useEffect(() => {
+    if (isDead && !isMatchOver) {
+      setPlayerLives(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0 && (!isTwoPlayers || playerLives2Ref.current <= 0)) {
+          setTimeout(() => setIsMatchOver(true), 1800);
+        }
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDead]);
+
+  useEffect(() => {
+    if (isDead2 && !isMatchOver) {
+      setPlayerLives2(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0 && playerLivesRef.current <= 0) {
+          setTimeout(() => setIsMatchOver(true), 1800);
+        }
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDead2]);
+
   // Respawn countdown timer (runs every second when dead)
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -365,26 +411,27 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     const stats = { ...def.stats };
     if (fact !== faction) { // Opponent bot
       if (difficulty === 'leila') {
-        stats.shield = Math.round(stats.shield * 0.32);
-        stats.speed = stats.speed * 0.45;
-        stats.power = Math.round(stats.power * 0.32);
-        stats.rate = stats.rate * 2.8;
+        stats.shield = Math.round(stats.shield * 0.18);
+        stats.speed = stats.speed * 0.35;
+        stats.power = Math.round(stats.power * 0.18);
+        stats.rate = stats.rate * 4.0;
       } else if (difficulty === 'c3po') {
-        stats.shield = Math.round(stats.shield * 0.55);
-        stats.speed = stats.speed * 0.7;
-        stats.power = Math.round(stats.power * 0.55);
-        stats.rate = stats.rate * 1.8;
+        stats.shield = Math.round(stats.shield * 0.3);
+        stats.speed = stats.speed * 0.55;
+        stats.power = Math.round(stats.power * 0.3);
+        stats.rate = stats.rate * 3.0;
       } else if (difficulty === 'clone') {
-        // Medium tier — still gets a slight handicap so combat stays forgiving
-        stats.shield = Math.round(stats.shield * 0.8);
-        stats.speed = stats.speed * 0.92;
-        stats.power = Math.round(stats.power * 0.8);
-        stats.rate = stats.rate * 1.2;
+        // Medium tier — bots are clearly weaker so combat stays forgiving
+        stats.shield = Math.round(stats.shield * 0.5);
+        stats.speed = stats.speed * 0.75;
+        stats.power = Math.round(stats.power * 0.5);
+        stats.rate = stats.rate * 2.0;
       } else if (difficulty === 'jarjar') {
-        stats.shield = Math.round(stats.shield * 1.35);
-        stats.speed = stats.speed * 1.2;
-        stats.power = Math.round(stats.power * 1.20);
-        stats.rate = stats.rate * 0.75;
+        // Hardest tier — but no longer brutal
+        stats.shield = Math.round(stats.shield * 0.9);
+        stats.speed = stats.speed * 0.95;
+        stats.power = Math.round(stats.power * 0.85);
+        stats.rate = stats.rate * 1.15;
       }
     }
 
@@ -570,6 +617,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     setIsPaused(false);
     setIsMatchOver(false);
     setMatchTimeLeft(180);
+    setPlayerLives(computeLivesFromShield(getShipDefById(selectedShipId)?.stats.shield ?? 350));
+    setPlayerLives2(computeLivesFromShield(getShipDefById(selectedShipId2 || 'tie_fighter')?.stats.shield ?? 320));
 
     // 2. Spawn Asteroids
     const asteroids: Asteroid[] = [];
@@ -840,9 +889,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Respawn player action
   const respawnPlayer = () => {
+    if (playerLivesRef.current <= 0) return; // out of lives — no reinforcements
     const state = game.current;
     const playerDef = getShipDefById(respawnShipId)!;
-    
+
     const px = Math.random() * (WORLD_SIZE - 800) + 400;
     let py = 0;
     if (faction === 'light') {
@@ -877,6 +927,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Respawn player 2 action
   const respawnPlayer2 = () => {
+    if (playerLives2Ref.current <= 0) return; // out of lives — no reinforcements
     const state = game.current;
     if (!state.player2Ship) return;
     const playerDef2 = getShipDefById(respawnShipId2)!;
@@ -1309,7 +1360,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax = 0;
       let ay = 0;
-      const accel = 0.24 * (isBoostActive ? 2.5 : 1.0);
+      const accel = 0.16 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
 
       // Poll Gamepad inputs if a controller is connected
@@ -1405,7 +1456,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vy *= 0.96;
 
       // Speed clamp (faster gameplay)
-      const maxSpeed = player.stats.speed * 0.65 * speedMultiplier;
+      const maxSpeed = player.stats.speed * 0.48 * speedMultiplier;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
       if (currentSpeed > maxSpeed) {
         player.vx = (player.vx / currentSpeed) * maxSpeed;
@@ -1577,7 +1628,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax2 = 0;
       let ay2 = 0;
-      const accel2 = 0.24 * (isBoostActive2 ? 2.5 : 1.0);
+      const accel2 = 0.16 * (isBoostActive2 ? 2.5 : 1.0);
       const controlSign2 = faction2 === 'light' ? -1 : 1;
 
       // Poll Gamepad 2 inputs if connected
@@ -1652,7 +1703,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player2.vy *= 0.96;
 
       // Speed clamp
-      const maxSpeed2 = player2.stats.speed * 0.65 * speedMultiplier2;
+      const maxSpeed2 = player2.stats.speed * 0.48 * speedMultiplier2;
       const currentSpeed2 = Math.sqrt(player2.vx * player2.vx + player2.vy * player2.vy);
       if (currentSpeed2 > maxSpeed2) {
         player2.vx = (player2.vx / currentSpeed2) * maxSpeed2;
@@ -2095,7 +2146,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
           const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
           const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
-          const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
+          const aiMaxSpeed = ship.stats.speed * 0.48 * aiSpeedMultiplier;
           const accelSpeed = aiMaxSpeed * 0.08 * (aiBoostActive ? 1.8 : 1.0);
 
           // Fly closer if far, orbit if close to make dogfights dynamic
@@ -2362,7 +2413,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
 
       const spd = Math.sqrt(ship.vx * ship.vx + ship.vy * ship.vy);
-      const aiMaxSpeed = ship.stats.speed * 0.65 * aiSpeedMultiplier;
+      const aiMaxSpeed = ship.stats.speed * 0.48 * aiSpeedMultiplier;
       if (spd > aiMaxSpeed) {
         ship.vx = (ship.vx / spd) * aiMaxSpeed;
         ship.vy = (ship.vy / spd) * aiMaxSpeed;
@@ -3084,6 +3135,13 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ctx.translate(dx, dy);
     }
 
+    // Apply Zoom-out for a wider tactical view (scaled around the viewport center)
+    const vcx = viewportX + viewportWidth / 2;
+    const vcy = viewportY + viewportHeight / 2;
+    ctx.translate(vcx, vcy);
+    ctx.scale(VIEW_ZOOM, VIEW_ZOOM);
+    ctx.translate(-vcx, -vcy);
+
     // Apply Camera Rotation based on Faction View
     // Light faction: rotated 180 degrees so that South (center) points UP.
     if (playerFaction === 'light') {
@@ -3677,6 +3735,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <span className="text-[9px] text-zinc-400">SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span></span>
               <span className="text-[9px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold crt-glow">{hud.kills}</span></span>
               <span className="text-[9px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold crt-glow">{hud.deaths}</span></span>
+              <span className="text-[9px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold crt-glow">{'❤'.repeat(Math.max(playerLives, 0))} {playerLives}</span></span>
             </div>
           </div>
 
@@ -3767,6 +3826,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud.score}</span></span>
                 <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud.deaths}</span></span>
+                <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives}❤</span></span>
               </div>
             </div>
 
@@ -3833,6 +3893,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud2.score}</span></span>
                 <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud2.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud2.deaths}</span></span>
+                <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives2}❤</span></span>
               </div>
             </div>
 
@@ -3959,12 +4020,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             <Skull className="w-5 h-5" />
           </div>
 
-          <div className="text-center flex flex-col gap-1">
+          <div className="text-center flex flex-col gap-1.5 items-center">
             <h2 className={`font-extrabold uppercase tracking-wider text-white crt-glow ${isTwoPlayers ? 'text-xs' : 'text-lg'}`}>
               {playerName} ELIMINATED
             </h2>
+            <div className="flex items-center gap-1 text-rose-400 text-xs" aria-label={`${playerLives} lives left`}>
+              {Array.from({ length: Math.max(playerLives, 0) }).map((_, i) => (
+                <span key={i} className="crt-glow">❤</span>
+              ))}
+              <span className="ml-1 text-[8px] text-zinc-400 font-mono uppercase">{playerLives} LIVES</span>
+            </div>
             <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
-              Choose P1 starfighter from base hangar
+              {playerLives > 0 ? 'Choose P1 starfighter from base hangar' : 'NO REINFORCEMENTS LEFT — GAME OVER'}
             </p>
           </div>
 
@@ -4036,20 +4103,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           {/* Spawn lock and launch */}
           <div className="flex flex-col items-center gap-1.5 mt-1">
             <span className="text-[8px] font-bold text-yellow-500">
-              {respawnTimeLeft > 0 ? `LOCKED: ${respawnTimeLeft}s` : 'READY'}
+              {playerLives <= 0 ? 'OUT OF LIVES' : respawnTimeLeft > 0 ? `LOCKED: ${respawnTimeLeft}s` : 'READY'}
             </span>
             <button
               onClick={respawnPlayer}
-              disabled={respawnTimeLeft > 0}
+              disabled={respawnTimeLeft > 0 || playerLives <= 0}
               className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
-                respawnTimeLeft > 0
+                respawnTimeLeft > 0 || playerLives <= 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction === 'light'
                     ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
-              {respawnTimeLeft > 0 ? `WAIT (${respawnTimeLeft}s)` : 'LAUNCH (E)'}
+              {playerLives <= 0 ? 'GAME OVER' : respawnTimeLeft > 0 ? `WAIT (${respawnTimeLeft}s)` : 'LAUNCH (E)'}
             </button>
           </div>
         </div>
@@ -4062,12 +4129,18 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             <Skull className="w-5 h-5" />
           </div>
 
-          <div className="text-center flex flex-col gap-1">
+          <div className="text-center flex flex-col gap-1.5 items-center">
             <h2 className="font-extrabold uppercase tracking-wider text-white crt-glow text-xs">
               {playerName2} ELIMINATED
             </h2>
+            <div className="flex items-center gap-1 text-rose-400 text-xs" aria-label={`${playerLives2} lives left`}>
+              {Array.from({ length: Math.max(playerLives2, 0) }).map((_, i) => (
+                <span key={i} className="crt-glow">❤</span>
+              ))}
+              <span className="ml-1 text-[8px] text-zinc-400 font-mono uppercase">{playerLives2} LIVES</span>
+            </div>
             <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
-              Choose P2 starfighter from base hangar
+              {playerLives2 > 0 ? 'Choose P2 starfighter from base hangar' : 'NO REINFORCEMENTS LEFT — GAME OVER'}
             </p>
           </div>
 
@@ -4139,20 +4212,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           {/* Spawn lock and launch */}
           <div className="flex flex-col items-center gap-1.5 mt-1">
             <span className="text-[8px] font-bold text-yellow-500">
-              {respawnTimeLeft2 > 0 ? `LOCKED: ${respawnTimeLeft2}s` : 'READY'}
+              {playerLives2 <= 0 ? 'OUT OF LIVES' : respawnTimeLeft2 > 0 ? `LOCKED: ${respawnTimeLeft2}s` : 'READY'}
             </span>
             <button
               onClick={respawnPlayer2}
-              disabled={respawnTimeLeft2 > 0}
+              disabled={respawnTimeLeft2 > 0 || playerLives2 <= 0}
               className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
-                respawnTimeLeft2 > 0
+                respawnTimeLeft2 > 0 || playerLives2 <= 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction2 === 'light'
                     ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
-              {respawnTimeLeft2 > 0 ? `WAIT (${respawnTimeLeft2}s)` : 'LAUNCH (SPACE)'}
+              {playerLives2 <= 0 ? 'GAME OVER' : respawnTimeLeft2 > 0 ? `WAIT (${respawnTimeLeft2}s)` : 'LAUNCH (SPACE)'}
             </button>
           </div>
         </div>
