@@ -24,11 +24,6 @@ const INITIAL_ASTEROIDS = 80;
 const LASER_SPEED = 7.0;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
-// Every ship gets the same 3 hearts / lives.
-const computeLivesFromShield = (_shield: number): number => {
-  return 3;
-};
-
 const LIGHT_PILOT_NAMES = [
   'Wedge Antilles',
   'Biggs Darklighter',
@@ -177,14 +172,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const [isMatchOver, setIsMatchOver] = useState(false);
   const matchTimeLeftRef = useRef(180);
 
-  // Lives system — each player gets 5..8 lives based on their starting ship's life bar
-  const [playerLives, setPlayerLives] = useState(() => computeLivesFromShield(getShipDefById(selectedShipId)?.stats.shield ?? 350));
-  const [playerLives2, setPlayerLives2] = useState(() => computeLivesFromShield(getShipDefById(selectedShipId2 || 'tie_fighter')?.stats.shield ?? 320));
-  const playerLivesRef = useRef(playerLives);
-  const playerLives2Ref = useRef(playerLives2);
-  playerLivesRef.current = playerLives;
-  playerLives2Ref.current = playerLives2;
-
   // Dynamic canvas size state
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 800, height: 600 });
 
@@ -312,34 +299,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
     return () => clearInterval(timer);
   }, [isMatchOver]);
-
-  // Decrement a life each time a player is eliminated. When a player runs out of
-  // lives they can no longer respawn; the match ends once all humans are out.
-  useEffect(() => {
-    if (isDead && !isMatchOver) {
-      setPlayerLives(prev => {
-        const next = Math.max(0, prev - 1);
-        if (next <= 0 && (!isTwoPlayers || playerLives2Ref.current <= 0)) {
-          setTimeout(() => setIsMatchOver(true), 1800);
-        }
-        return next;
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDead]);
-
-  useEffect(() => {
-    if (isDead2 && !isMatchOver) {
-      setPlayerLives2(prev => {
-        const next = Math.max(0, prev - 1);
-        if (next <= 0 && playerLivesRef.current <= 0) {
-          setTimeout(() => setIsMatchOver(true), 1800);
-        }
-        return next;
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDead2]);
 
   // Respawn countdown timer (runs every second when dead)
   useEffect(() => {
@@ -613,8 +572,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     setIsPaused(false);
     setIsMatchOver(false);
     setMatchTimeLeft(180);
-    setPlayerLives(computeLivesFromShield(getShipDefById(selectedShipId)?.stats.shield ?? 350));
-    setPlayerLives2(computeLivesFromShield(getShipDefById(selectedShipId2 || 'tie_fighter')?.stats.shield ?? 320));
 
     // 2. Spawn Asteroids
     const asteroids: Asteroid[] = [];
@@ -885,7 +842,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Respawn player action
   const respawnPlayer = () => {
-    if (playerLivesRef.current <= 0) return; // out of lives — no reinforcements
     const state = game.current;
     const playerDef = getShipDefById(respawnShipId)!;
 
@@ -923,7 +879,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
   // Respawn player 2 action
   const respawnPlayer2 = () => {
-    if (playerLives2Ref.current <= 0) return; // out of lives — no reinforcements
     const state = game.current;
     if (!state.player2Ship) return;
     const playerDef2 = getShipDefById(respawnShipId2)!;
@@ -3748,7 +3703,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <span className="text-[9px] text-zinc-400">SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span></span>
               <span className="text-[9px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold crt-glow">{hud.kills}</span></span>
               <span className="text-[9px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold crt-glow">{hud.deaths}</span></span>
-              <span className="text-[9px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold crt-glow">{'❤'.repeat(Math.max(playerLives, 0))} {playerLives}</span></span>
             </div>
           </div>
 
@@ -3839,7 +3793,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud.score}</span></span>
                 <span className="text-[8px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold">{hud.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud.deaths}</span></span>
-                <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives}❤</span></span>
               </div>
             </div>
 
@@ -3906,7 +3859,6 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud2.score}</span></span>
                 <span className="text-[8px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold">{hud2.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud2.deaths}</span></span>
-                <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives2}❤</span></span>
               </div>
             </div>
 
@@ -4033,18 +3985,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             <Skull className="w-5 h-5" />
           </div>
 
-          <div className="text-center flex flex-col gap-1.5 items-center">
+          <div className="text-center flex flex-col gap-1 items-center">
             <h2 className={`font-extrabold uppercase tracking-wider text-white crt-glow ${isTwoPlayers ? 'text-xs' : 'text-lg'}`}>
               {playerName} ELIMINATED
             </h2>
-            <div className="flex items-center gap-1 text-rose-400 text-xs" aria-label={`${playerLives} lives left`}>
-              {Array.from({ length: Math.max(playerLives, 0) }).map((_, i) => (
-                <span key={i} className="crt-glow">❤</span>
-              ))}
-              <span className="ml-1 text-[8px] text-zinc-400 font-mono uppercase">{playerLives} LIVES</span>
-            </div>
             <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
-              {playerLives > 0 ? 'Choose P1 starfighter from base hangar' : 'NO REINFORCEMENTS LEFT — GAME OVER'}
+              Choose P1 starfighter from base hangar
             </p>
           </div>
 
@@ -4116,20 +4062,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           {/* Spawn lock and launch */}
           <div className="flex flex-col items-center gap-1.5 mt-1">
             <span className="text-[8px] font-bold text-yellow-500">
-              {playerLives <= 0 ? 'OUT OF LIVES' : respawnTimeLeft > 0 ? `LOCKED: ${respawnTimeLeft}s` : 'READY'}
+              {respawnTimeLeft > 0 ? `LOCKED: ${respawnTimeLeft}s` : 'READY'}
             </span>
             <button
               onClick={respawnPlayer}
-              disabled={respawnTimeLeft > 0 || playerLives <= 0}
+              disabled={respawnTimeLeft > 0}
               className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
-                respawnTimeLeft > 0 || playerLives <= 0
+                respawnTimeLeft > 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction === 'light'
                     ? 'bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
-              {playerLives <= 0 ? 'GAME OVER' : respawnTimeLeft > 0 ? `WAIT (${respawnTimeLeft}s)` : 'LAUNCH (E)'}
+              {respawnTimeLeft > 0 ? `WAIT (${respawnTimeLeft}s)` : 'LAUNCH (E)'}
             </button>
           </div>
         </div>
@@ -4142,18 +4088,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             <Skull className="w-5 h-5" />
           </div>
 
-          <div className="text-center flex flex-col gap-1.5 items-center">
+          <div className="text-center flex flex-col gap-1 items-center">
             <h2 className="font-extrabold uppercase tracking-wider text-white crt-glow text-xs">
               {playerName2} ELIMINATED
             </h2>
-            <div className="flex items-center gap-1 text-rose-400 text-xs" aria-label={`${playerLives2} lives left`}>
-              {Array.from({ length: Math.max(playerLives2, 0) }).map((_, i) => (
-                <span key={i} className="crt-glow">❤</span>
-              ))}
-              <span className="ml-1 text-[8px] text-zinc-400 font-mono uppercase">{playerLives2} LIVES</span>
-            </div>
             <p className="text-[7.5px] text-zinc-500 uppercase tracking-widest">
-              {playerLives2 > 0 ? 'Choose P2 starfighter from base hangar' : 'NO REINFORCEMENTS LEFT — GAME OVER'}
+              Choose P2 starfighter from base hangar
             </p>
           </div>
 
@@ -4225,20 +4165,20 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           {/* Spawn lock and launch */}
           <div className="flex flex-col items-center gap-1.5 mt-1">
             <span className="text-[8px] font-bold text-yellow-500">
-              {playerLives2 <= 0 ? 'OUT OF LIVES' : respawnTimeLeft2 > 0 ? `LOCKED: ${respawnTimeLeft2}s` : 'READY'}
+              {respawnTimeLeft2 > 0 ? `LOCKED: ${respawnTimeLeft2}s` : 'READY'}
             </span>
             <button
               onClick={respawnPlayer2}
-              disabled={respawnTimeLeft2 > 0 || playerLives2 <= 0}
+              disabled={respawnTimeLeft2 > 0}
               className={`py-2.5 px-8 text-[8px] font-bold text-white rounded-lg transition-all uppercase cursor-pointer ${
-                respawnTimeLeft2 > 0 || playerLives2 <= 0
+                respawnTimeLeft2 > 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction2 === 'light'
                     ? 'bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
-              {playerLives2 <= 0 ? 'GAME OVER' : respawnTimeLeft2 > 0 ? `WAIT (${respawnTimeLeft2}s)` : 'LAUNCH (SPACE)'}
+              {respawnTimeLeft2 > 0 ? `WAIT (${respawnTimeLeft2}s)` : 'LAUNCH (SPACE)'}
             </button>
           </div>
         </div>
