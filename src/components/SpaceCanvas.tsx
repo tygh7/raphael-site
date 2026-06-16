@@ -109,6 +109,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   const keyboardLayout = useRef<'azerty' | 'qwerty'>('azerty');
   const mousePos = useRef({ x: 0, y: 0 });
   const isMouseDown = useRef(false);
+  // Timestamp of the last mouse/trackpad movement — lets mouse aiming take
+  // priority for full 360° aim while still falling back to keyboard travel-aim
+  // when the player isn't touching the mouse.
+  const lastMouseMove = useRef(0);
 
   // Local game states to sync with React UI
   const [hud, setHud] = useState({
@@ -735,6 +739,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
       };
+      lastMouseMove.current = Date.now();
     };
 
     const handleMouseDown = (e: MouseEvent) => {
@@ -1541,40 +1546,59 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player.y = Math.max(50, Math.min(WORLD_SIZE - 50, player.y));
       }
 
-      // Controller / Mouse Aiming Direction
+      // Aiming Direction — full 360° on every angle of the circle.
+      // Priority: gamepad right stick > active mouse/trackpad > left stick /
+      // keyboard travel direction > last mouse position.
       let aimed = false;
+
+      // 1. Gamepad right stick — true twin-stick free aim (any angle).
       if (gp) {
         const rx = gp.axes[2] || 0;
         const ry = gp.axes[3] || 0;
-        const rightDeadzone = 0.18;
         const rightStickDist = Math.sqrt(rx * rx + ry * ry);
-
-        if (rightStickDist > rightDeadzone) {
+        if (rightStickDist > 0.18) {
           player.angle = Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0);
-          aimed = true;
-        } else if (gpAx !== 0 || gpAy !== 0) {
-          // Move-to-face: face left joystick movement angle
-          player.angle = Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0);
           aimed = true;
         }
       }
 
+      // 2. Mouse / trackpad — if it moved recently, it owns the aim (any angle).
+      const mouseRecentlyMoved = Date.now() - lastMouseMove.current < 1500;
+      if (!aimed && mouseRecentlyMoved) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
+          const screenCenterY = canvas.height / 2;
+          const dx = mousePos.current.x - screenCenterX;
+          const dy = mousePos.current.y - screenCenterY;
+          // Light side screen is rotated 180°, so rotate the world target angle to match.
+          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+          aimed = true;
+        }
+      }
+
+      // 3. Gamepad left stick movement direction (move-to-face).
+      if (!aimed && gp && (gpAx !== 0 || gpAy !== 0)) {
+        player.angle = Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0);
+        aimed = true;
+      }
+
+      // 4. Keyboard thrust direction — WASD/arrows fire along travel (diagonals included).
+      // ax/ay are already world-space here, so no faction rotation needed.
+      if (!aimed && (ax !== 0 || ay !== 0)) {
+        player.angle = Math.atan2(ay, ax);
+        aimed = true;
+      }
+
+      // 5. Fallback: aim at the last known mouse position.
       if (!aimed) {
-        // Keyboard thrust aims the ship along its travel direction, so WASD /
-        // arrows let you fire in any of the 8 directions (diagonals included).
-        // ax/ay are already in world space here, so no faction rotation needed.
-        if (ax !== 0 || ay !== 0) {
-          player.angle = Math.atan2(ay, ax);
-        } else {
-          const canvas = canvasRef.current;
-          if (canvas) {
-            const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
-            const screenCenterY = canvas.height / 2;
-            const dx = mousePos.current.x - screenCenterX;
-            const dy = mousePos.current.y - screenCenterY;
-            // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
-            player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
-          }
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
+          const screenCenterY = canvas.height / 2;
+          const dx = mousePos.current.x - screenCenterX;
+          const dy = mousePos.current.y - screenCenterY;
+          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
         }
       }
 
