@@ -83,38 +83,38 @@ export default function SpacePage() {
   return (
     <main className="flex-1 w-full min-h-screen p-4 md:p-8 flex flex-col items-center gap-6 relative overflow-x-hidden select-none">
       {/* Background space elements */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] aspect-square rounded-full bg-indigo-950/10 blur-[130px] pointer-events-none -z-10" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] aspect-square rounded-full bg-rose-950/10 blur-[130px] pointer-events-none -z-10" />
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] aspect-square rounded-full bg-indigo-950/5 blur-[130px] pointer-events-none -z-10" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] aspect-square rounded-full bg-rose-950/5 blur-[130px] pointer-events-none -z-10" />
 
       {/* Main Header */}
-      <header className="w-full max-w-[1200px] flex flex-col md:flex-row justify-between items-center gap-4 border-b border-zinc-800 pb-4">
-        <div className="flex flex-col gap-1 text-center md:text-left">
-          <div className="flex items-center gap-2 justify-center md:justify-start">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-zinc-200 to-rose-400 font-display uppercase">
+      <header className="w-full max-w-[1200px] flex flex-col md:flex-row justify-between items-center gap-6 border-b-4 border-zinc-800 pb-6">
+        <div className="flex flex-col gap-2 text-center md:text-left">
+          <div className="flex items-center gap-3 justify-center md:justify-start">
+            <h1 className="text-md md:text-xl font-extrabold tracking-widest text-white font-press uppercase pixel-glow-white">
               GALAXY DOGFIGHT
             </h1>
-            <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-yellow-400 animate-pulse" />
           </div>
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest font-mono">
-            Star Wars Faction Wars - 2D Retro Space Battles
+          <p className="text-[8px] md:text-[9px] font-bold text-zinc-500 uppercase tracking-widest font-press">
+            STAR WARS FLEET WARS - 2D RETRO DOGFIGHTS
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setShowRules(!showRules)}
-            className="flex items-center gap-2 px-4 py-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-white rounded-xl transition-all"
+            className="flex items-center gap-2 px-4 py-3 border-2 border-zinc-800 hover:border-zinc-600 bg-zinc-950 text-[9px] font-bold text-zinc-400 hover:text-white rounded-none font-press transition-all cursor-pointer"
           >
-            <BookOpen className="w-4 h-4" />
-            {showRules ? 'CLOSE MANUAL' : 'VIEW FLIGHT MANUAL'}
+            <BookOpen className="w-3.5 h-3.5" />
+            {showRules ? 'CLOSE MANUAL' : 'FLIGHT MANUAL'}
           </button>
           
           <button
             onClick={handleResetHistory}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/80 text-xs font-semibold text-zinc-300 rounded-xl transition-all"
+            className="flex items-center gap-2 px-4 py-3 bg-zinc-950 border-2 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-900 text-[9px] font-bold text-zinc-300 rounded-none font-press transition-all cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            CLEAR LOGS
+            RESET LOGS
           </button>
         </div>
       </header>
@@ -140,7 +140,7 @@ export default function SpacePage() {
                 playerName={playerName}
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}
-                onKillFeed={(msg, type) => setQuestHistory(prev => [...prev, { text: msg, type: type || 'system' }])}
+                onKillFeed={(msg, type) => setQuestHistory(prev => [...prev, { text: msg.toUpperCase(), type: type || 'system' }])}
               />
             )
           )}
@@ -149,42 +149,45 @@ export default function SpacePage() {
         {/* Sidebar */}
         <div className="lg:col-span-4 flex flex-col gap-6 w-full">
           {/* High Score Panel */}
-          <div className="border border-zinc-800 bg-zinc-950/60 rounded-2xl p-5 flex flex-col gap-3 backdrop-blur-md shadow-lg">
+          <div className="pixel-border-amber bg-[#050508]/95 rounded-none p-5 flex flex-col gap-4 shadow-xl crt-scanlines">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider font-mono">
-                RECORD HIGH SCORE
+              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider font-press">
+                FLEET RECORD
               </span>
               <Trophy className="w-4 h-4 text-yellow-400" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-white font-mono tracking-wider">
+              <span className="text-xl md:text-2xl font-extrabold text-yellow-400 font-press tracking-wider pixel-glow-yellow">
                 {highScore}
               </span>
-              <span className="text-[10px] font-bold text-zinc-500 font-mono">PTS</span>
+              <span className="text-[8px] font-bold text-zinc-500 font-press">PTS</span>
             </div>
           </div>
 
           {/* Sector Chronicles Log */}
-          <div className="border border-zinc-800 bg-zinc-950/60 rounded-2xl p-5 flex flex-col gap-3 backdrop-blur-md shadow-lg">
+          <div className="pixel-border-zinc bg-[#050508]/95 rounded-none p-5 flex flex-col gap-4 shadow-xl crt-scanlines">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                SECTOR LOG HISTORY
+              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider font-press">
+                SECTOR CHRONICLES
               </span>
               <Compass className="w-4 h-4 text-sky-400 animate-spin-slow" />
             </div>
-            <div className="h-[260px] border border-zinc-850 bg-[#07070a]/90 p-3 rounded-xl overflow-y-auto flex flex-col gap-2 shadow-inner scrollbar-thin scrollbar-thumb-zinc-800">
+            <div className="h-[280px] border-2 border-zinc-800 bg-[#020204]/90 p-3 rounded-none overflow-y-auto flex flex-col gap-3.5 scrollbar-thin">
               {questHistory.map((log, index) => {
                 const isLast = index === questHistory.length - 1;
-                let colorClass = 'text-zinc-400';
+                let colorClass = 'text-zinc-500';
+                let glowClass = '';
                 if (log.type === 'light') {
-                  colorClass = isLast ? 'text-emerald-300 font-bold' : 'text-emerald-500/90';
+                  colorClass = isLast ? 'text-emerald-400 font-bold' : 'text-emerald-600/80';
+                  glowClass = isLast ? 'pixel-glow-emerald' : '';
                 } else if (log.type === 'dark') {
-                  colorClass = isLast ? 'text-rose-300 font-bold' : 'text-rose-500/90';
+                  colorClass = isLast ? 'text-rose-400 font-bold' : 'text-rose-600/80';
+                  glowClass = isLast ? 'pixel-glow-rose' : '';
                 } else if (isLast) {
-                  colorClass = 'text-zinc-100 font-bold';
+                  colorClass = 'text-zinc-200 font-bold';
                 }
                 return (
-                  <div key={index} className={`text-xs leading-relaxed font-mono border-b border-zinc-900 pb-1.5 last:border-0 ${colorClass}`}>
+                  <div key={index} className={`text-[8px] leading-relaxed font-press border-b border-zinc-900 pb-2.5 last:border-0 last:pb-0 ${colorClass} ${glowClass}`}>
                     &gt; {log.text}
                   </div>
                 );
