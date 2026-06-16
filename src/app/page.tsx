@@ -131,6 +131,7 @@ export default function SpacePage() {
                 playerName={playerName}
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}
+                onKillFeed={(msg) => setQuestHistory(prev => [...prev, msg])}
               />
             )
           )}
