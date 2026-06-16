@@ -54,9 +54,9 @@ body {
 }
 
 /* Pixel double borders */
-.pixel-border-emerald {
-  border: 4px double #10b981;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2), inset 0 0 10px rgba(16, 185, 129, 0.1);
+.pixel-border-sky {
+  border: 4px double #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.22), inset 0 0 10px rgba(56, 189, 248, 0.12);
 }
 .pixel-border-rose {
   border: 4px double #ef4444;

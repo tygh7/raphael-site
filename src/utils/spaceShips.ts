@@ -6,11 +6,11 @@ export const LIGHT_SHIPS: ShipDef[] = [
     name: 'T-65 X-Wing',
     faction: 'light',
     description: 'The iconic rebel starfighter. Well-balanced speed, shielding, and firepower.',
-    color: '#10b981', // Green lasers
+    color: '#3b82f6', // Blue lasers
     stats: {
       speed: 4.8,
       power: 15,
-      rate: 300,
+      rate: 225,
       range: 650,
       shield: 560
     }
@@ -20,11 +20,11 @@ export const LIGHT_SHIPS: ShipDef[] = [
     name: 'Millennium Falcon',
     faction: 'light',
     description: 'A heavily modified YT-1300 light freighter. Extremely durable with dual laser cannons.',
-    color: '#06b6d4', // Cyan/Blue lasers
+    color: '#22d3ee', // Bright cyan/blue lasers
     stats: {
       speed: 3.8,
       power: 28,
-      rate: 450,
+      rate: 330,
       range: 800,
       shield: 950
     }
@@ -34,11 +34,11 @@ export const LIGHT_SHIPS: ShipDef[] = [
     name: 'Delta-7 Aethersprite',
     faction: 'light',
     description: 'A highly agile Jedi starfighter. Excellent acceleration and quick laser fire.',
-    color: '#3b82f6', // Dark blue lasers
+    color: '#60a5fa', // Light blue lasers
     stats: {
       speed: 5.6,
       power: 12,
-      rate: 200,
+      rate: 150,
       range: 600,
       shield: 400
     }
@@ -48,11 +48,11 @@ export const LIGHT_SHIPS: ShipDef[] = [
     name: 'Eta-2 Jedi Starfighter',
     faction: 'light',
     description: 'Anakin Skywalker\'s custom interceptor. Fast, deadly, but thin shields.',
-    color: '#10b981', // Green lasers
+    color: '#3b82f6', // Blue lasers
     stats: {
       speed: 6.2,
       power: 18,
-      rate: 250,
+      rate: 190,
       range: 700,
       shield: 360
     }
@@ -69,7 +69,7 @@ export const DARK_SHIPS: ShipDef[] = [
     stats: {
       speed: 6.0,
       power: 10,
-      rate: 180,
+      rate: 140,
       range: 550,
       shield: 380
     }
@@ -83,7 +83,7 @@ export const DARK_SHIPS: ShipDef[] = [
     stats: {
       speed: 5.0,
       power: 10,
-      rate: 220,
+      rate: 165,
       range: 550,
       shield: 320
     }
@@ -97,7 +97,7 @@ export const DARK_SHIPS: ShipDef[] = [
     stats: {
       speed: 4.5,
       power: 25,
-      rate: 350,
+      rate: 260,
       range: 750,
       shield: 640
     }
@@ -111,7 +111,7 @@ export const DARK_SHIPS: ShipDef[] = [
     stats: {
       speed: 5.2,
       power: 16,
-      rate: 280,
+      rate: 210,
       range: 650,
       shield: 520
     }
@@ -125,7 +125,7 @@ export const DARK_SHIPS: ShipDef[] = [
     stats: {
       speed: 6.5,
       power: 20,
-      rate: 240,
+      rate: 180,
       range: 850,
       shield: 480
     }

@@ -194,14 +194,14 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               setPlayerCount(1);
               setStep(1);
             }}
-            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-emerald hover:border-emerald-400 bg-[#060c08]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
+            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-sky hover:border-sky-400 bg-[#060c08]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
           >
             <div className="flex flex-col items-center gap-6 z-10">
-              <span className="w-16 h-16 rounded-none bg-emerald-950/40 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
+              <span className="w-16 h-16 rounded-none bg-sky-950/40 border-2 border-sky-500/50 flex items-center justify-center text-sky-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
                 <User className="w-8 h-8" />
               </span>
               <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-bold tracking-widest text-emerald-400 font-press uppercase group-hover:text-emerald-300 pixel-glow-emerald">
+                <h3 className="text-sm font-bold tracking-widest text-sky-400 font-press uppercase group-hover:text-sky-300 pixel-glow-sky">
                   1 PLAYER
                 </h3>
                 <span className="text-[8px] font-bold text-zinc-500 tracking-wider uppercase font-press">
@@ -277,20 +277,20 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
                 setStep(5);
               }
             }}
-            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-emerald hover:border-emerald-400 bg-[#060c08]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
+            className="group relative flex flex-col items-center justify-between p-8 rounded-none pixel-border-sky hover:border-sky-400 bg-[#060c08]/90 text-center cursor-pointer transition-all duration-300 hover:scale-[1.02] shadow-2xl"
           >
             <div className="absolute inset-0 flex items-center justify-center opacity-5 group-hover:opacity-10 pointer-events-none transition-opacity">
-              <svg viewBox="0 0 100 100" className="w-40 h-40 fill-emerald-500">
+              <svg viewBox="0 0 100 100" className="w-40 h-40 fill-sky-500">
                 <path d="M50 0 C55 25 75 35 100 45 C80 50 65 65 60 100 C50 75 30 65 0 55 C20 50 35 35 50 0 Z" />
               </svg>
             </div>
 
             <div className="flex flex-col items-center gap-6 z-10">
-              <span className="w-16 h-16 rounded-none bg-emerald-950/40 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
+              <span className="w-16 h-16 rounded-none bg-sky-950/40 border-2 border-sky-500/50 flex items-center justify-center text-sky-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all">
                 <Shield className="w-8 h-8" />
               </span>
               <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-bold tracking-widest text-emerald-400 font-press uppercase group-hover:text-emerald-300 pixel-glow-emerald">
+                <h3 className="text-sm font-bold tracking-widest text-sky-400 font-press uppercase group-hover:text-sky-300 pixel-glow-sky">
                   REBEL ALLIANCE
                 </h3>
                 <span className="text-[9px] font-bold text-zinc-500 tracking-wider uppercase font-press">
@@ -302,7 +302,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               </p>
             </div>
             
-            <button className="mt-8 py-3 px-6 rounded-none text-[10px] font-press font-bold bg-emerald-700 border-2 border-emerald-400 text-white transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)] group-hover:bg-emerald-600">
+            <button className="mt-8 py-3 px-6 rounded-none text-[10px] font-press font-bold bg-sky-700 border-2 border-sky-400 text-white transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)] group-hover:bg-sky-600">
               JOIN REBELS
             </button>
           </div>
@@ -369,12 +369,12 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
     };
 
     const isLight = currentFactionLocal === 'light';
-    const accentColor = isLight ? 'text-emerald-400' : 'text-rose-500';
-    const accentBorder = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
-    const glowClass = isLight ? 'pixel-glow-emerald' : 'pixel-glow-rose';
-    const accentBg = isLight ? 'bg-emerald-950/10' : 'bg-rose-950/10';
+    const accentColor = isLight ? 'text-sky-400' : 'text-rose-500';
+    const accentBorder = isLight ? 'pixel-border-sky' : 'pixel-border-rose';
+    const glowClass = isLight ? 'pixel-glow-sky' : 'pixel-glow-rose';
+    const accentBg = isLight ? 'bg-sky-950/10' : 'bg-rose-950/10';
     const accentBtn = isLight 
-      ? 'bg-emerald-700 border-2 border-emerald-400 hover:bg-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+      ? 'bg-sky-700 border-2 border-sky-400 hover:bg-sky-600 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
       : 'bg-rose-700 border-2 border-rose-400 hover:bg-rose-600 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
 
     return (
@@ -428,9 +428,9 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   // Render Step 7: Difficulty Selection
   if (step === 7) {
     const isLight = faction1 === 'light';
-    const accentColor = isLight ? 'text-emerald-400' : 'text-rose-500';
-    const accentBorder = isLight ? 'pixel-border-emerald' : 'pixel-border-rose';
-    const glowClass = isLight ? 'pixel-glow-emerald' : 'pixel-glow-rose';
+    const accentColor = isLight ? 'text-sky-400' : 'text-rose-500';
+    const accentBorder = isLight ? 'pixel-border-sky' : 'pixel-border-rose';
+    const glowClass = isLight ? 'pixel-glow-sky' : 'pixel-glow-rose';
 
     const difficulties: { id: Difficulty; label: string; sub: string; desc: string; borderClass: string; textClass: string; bgClass: string }[] = [
       {
@@ -438,9 +438,9 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
         label: 'LEILA SKYWALKER',
         sub: 'SUPER EASY',
         desc: 'WEAK OPPONENTS, SLOW FIRE AND REDUCED DAMAGE.',
-        borderClass: 'border-emerald-950 hover:border-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
-        textClass: 'text-emerald-400',
-        bgClass: 'hover:bg-emerald-950/20 bg-[#060c08]/50'
+        borderClass: 'border-sky-950 hover:border-sky-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+        textClass: 'text-sky-400',
+        bgClass: 'hover:bg-sky-950/20 bg-[#060c08]/50'
       },
       {
         id: 'c3po',
@@ -519,8 +519,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
 
   // Render Step 3 & 6: Starship Selection
   const isP1Ship = step === 3;
-  const accentBorderClass = currentFaction === 'light' ? 'pixel-border-emerald' : 'pixel-border-rose';
-  const glowClass = currentFaction === 'light' ? 'pixel-glow-emerald' : 'pixel-glow-rose';
+  const accentBorderClass = currentFaction === 'light' ? 'pixel-border-sky' : 'pixel-border-rose';
+  const glowClass = currentFaction === 'light' ? 'pixel-glow-sky' : 'pixel-glow-rose';
 
   return (
     <div className={`w-full max-w-[1050px] flex flex-col gap-6 p-6 md:p-8 rounded-none ${accentBorderClass} bg-[#050508]/95 backdrop-blur-md shadow-2xl animate-in slide-in-from-bottom-4 duration-300 crt-scanlines`}>
@@ -539,7 +539,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               {isP1Ship ? 'PLAYER 1' : 'PLAYER 2'}: SELECT YOUR FIGHTER
             </h2>
             <span className={`text-[9px] font-bold uppercase tracking-wider font-press ${
-              currentFaction === 'light' ? 'text-emerald-400' : 'text-rose-500'
+              currentFaction === 'light' ? 'text-sky-400' : 'text-rose-500'
             } ${glowClass}`}>
               AVAILABLE {currentFaction === 'light' ? 'ALLIANCE' : 'IMPERIAL'} HANGARS
             </span>
@@ -548,8 +548,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
           <div className="flex flex-col gap-3.5 max-h-[380px] overflow-y-auto pr-2 scrollbar-thin">
             {activeShips.map((ship) => {
               const active = ship.id === currentShipId;
-              const accentBorder = currentFaction === 'light' ? 'hover:border-emerald-500/50 border-zinc-800' : 'hover:border-rose-500/50 border-zinc-800';
-              const activeBorder = currentFaction === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
+              const accentBorder = currentFaction === 'light' ? 'hover:border-sky-500/50 border-zinc-800' : 'hover:border-rose-500/50 border-zinc-800';
+              const activeBorder = currentFaction === 'light' ? 'border-sky-500 bg-sky-950/20' : 'border-rose-500 bg-rose-950/20';
               
               return (
                 <div
@@ -572,7 +572,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
                     </span>
                   </div>
                   <ChevronRight className={`w-4 h-4 transition-transform ${
-                    active ? (currentFaction === 'light' ? 'text-emerald-400 translate-x-1' : 'text-rose-500 translate-x-1') : 'text-zinc-700'
+                    active ? (currentFaction === 'light' ? 'text-sky-400 translate-x-1' : 'text-rose-500 translate-x-1') : 'text-zinc-700'
                   }`} />
                 </div>
               );
@@ -589,7 +589,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
                 <h3 className="text-[11px] font-bold text-white uppercase tracking-wider font-press">{currentShip.name}</h3>
               </div>
               <span className={`px-2 py-1 rounded-none text-[8px] font-bold uppercase tracking-wider border-2 ${
-                currentFaction === 'light' ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-400' : 'border-rose-500/40 bg-rose-950/20 text-rose-500'
+                currentFaction === 'light' ? 'border-sky-500/40 bg-sky-950/20 text-sky-400' : 'border-rose-500/40 bg-rose-950/20 text-rose-500'
               }`}>
                 {currentFaction === 'light' ? 'LIGHT SIDE' : 'DARK SIDE'}
               </span>
@@ -611,11 +611,11 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
 
             {/* Attributes sliders */}
             <div className="flex flex-col gap-3.5 border-t border-zinc-800 pt-4">
-              {renderStatBar('ENGINE SPEED', currentShip.stats.speed, 8, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
-              {renderStatBar('LASER POWER', currentShip.stats.power, 40, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
-              {renderStatBar('FIRE FREQUENCY', Math.round(10000 / currentShip.stats.rate), 100, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
-              {renderStatBar('LASER RANGE', currentShip.stats.range, 1000, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
-              {renderStatBar('DEFENSIVE SHIELD', currentShip.stats.shield, 1000, currentFaction === 'light' ? 'bg-emerald-500' : 'bg-rose-500')}
+              {renderStatBar('ENGINE SPEED', currentShip.stats.speed, 8, currentFaction === 'light' ? 'bg-sky-500' : 'bg-rose-500')}
+              {renderStatBar('LASER POWER', currentShip.stats.power, 40, currentFaction === 'light' ? 'bg-sky-500' : 'bg-rose-500')}
+              {renderStatBar('FIRE FREQUENCY', Math.round(10000 / currentShip.stats.rate), 100, currentFaction === 'light' ? 'bg-sky-500' : 'bg-rose-500')}
+              {renderStatBar('LASER RANGE', currentShip.stats.range, 1000, currentFaction === 'light' ? 'bg-sky-500' : 'bg-rose-500')}
+              {renderStatBar('DEFENSIVE SHIELD', currentShip.stats.shield, 1000, currentFaction === 'light' ? 'bg-sky-500' : 'bg-rose-500')}
             </div>
 
             {/* Special Power Info */}
@@ -684,7 +684,7 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
               }}
               className={`w-full mt-2 py-4 px-6 rounded-none font-press font-bold text-[10px] text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
                 currentFaction === 'light'
-                  ? 'bg-emerald-700 border-2 border-emerald-400 hover:bg-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                  ? 'bg-sky-700 border-2 border-sky-400 hover:bg-sky-600 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                   : 'bg-rose-700 border-2 border-rose-400 hover:bg-rose-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >

@@ -71,7 +71,7 @@ export const SpaceRules: React.FC = () => {
 
       {/* Ship Attributes Table */}
       <div className="flex flex-col gap-4 border-t-2 border-zinc-800 pt-5 text-[8px] md:text-[9px]">
-        <h3 className="font-bold text-emerald-400 flex items-center gap-2 pixel-glow-emerald text-[10px]">
+        <h3 className="font-bold text-sky-400 flex items-center gap-2 pixel-glow-sky text-[10px]">
           <Sparkles className="w-4 h-4" /> STATS BREAKDOWN
         </h3>
         <div className="overflow-x-auto">
@@ -80,7 +80,7 @@ export const SpaceRules: React.FC = () => {
               <tr className="border-b-2 border-zinc-800 bg-zinc-950 text-zinc-500">
                 <th className="p-3 font-bold uppercase tracking-wider">STAT</th>
                 <th className="p-3 font-bold uppercase tracking-wider">DESCRIPTION</th>
-                <th className="p-3 font-bold uppercase tracking-wider text-emerald-400">HIGH TIER</th>
+                <th className="p-3 font-bold uppercase tracking-wider text-sky-400">HIGH TIER</th>
                 <th className="p-3 font-bold uppercase tracking-wider text-rose-500">LOW TIER</th>
               </tr>
             </thead>
@@ -88,25 +88,25 @@ export const SpaceRules: React.FC = () => {
               <tr>
                 <td className="p-3 text-zinc-300 font-bold">SPEED</td>
                 <td className="p-3 text-zinc-500 uppercase">MAX FLIGHT VELOCITY AND ACCELERATION.</td>
-                <td className="p-3 text-emerald-400">SILENCER (6.5)</td>
+                <td className="p-3 text-sky-400">SILENCER (6.5)</td>
                 <td className="p-3 text-rose-500">FALCON (3.8)</td>
               </tr>
               <tr>
                 <td className="p-3 text-zinc-300 font-bold">POWER</td>
                 <td className="p-3 text-zinc-500 uppercase">DAMAGE INFLICTED PER LASER CHARGE.</td>
-                <td className="p-3 text-emerald-400">FALCON (28)</td>
+                <td className="p-3 text-sky-400">FALCON (28)</td>
                 <td className="p-3 text-rose-500">SAILER (10)</td>
               </tr>
               <tr>
                 <td className="p-3 text-zinc-300 font-bold">FREQUENCY</td>
                 <td className="p-3 text-zinc-500 uppercase">COOLDOWN INTERVAL BETWEEN SHOTS.</td>
-                <td className="p-3 text-emerald-400">SAILER (180MS)</td>
+                <td className="p-3 text-sky-400">SAILER (180MS)</td>
                 <td className="p-3 text-rose-500">FALCON (450MS)</td>
               </tr>
               <tr>
                 <td className="p-3 text-zinc-300 font-bold">SHIELD</td>
                 <td className="p-3 text-zinc-500 uppercase">MAXIMUM HULL STRENGTH CAPACITY.</td>
-                <td className="p-3 text-emerald-400">FALCON (250)</td>
+                <td className="p-3 text-sky-400">FALCON (250)</td>
                 <td className="p-3 text-rose-500">TIE/LN (80)</td>
               </tr>
             </tbody>

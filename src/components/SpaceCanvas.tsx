@@ -22,15 +22,11 @@ interface SpaceCanvasProps {
 const WORLD_SIZE = 8000;
 const INITIAL_ASTEROIDS = 80;
 const LASER_SPEED = 7.0;
-const VIEW_ZOOM = 0.7; // <1 zooms the camera out for a wider battlefield view
+const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
-// Lives scale with the ship's life bar: small shield -> 5 lives, big shield -> 8 lives.
-// Shield values currently span ~320 (TIE Fighter) to 950 (Millennium Falcon).
-const computeLivesFromShield = (shield: number): number => {
-  const MIN = 320;
-  const MAX = 950;
-  const t = Math.max(0, Math.min(1, (shield - MIN) / (MAX - MIN)));
-  return Math.round(5 + t * 3); // 5..8
+// Every ship gets the same 3 hearts / lives.
+const computeLivesFromShield = (_shield: number): number => {
+  return 3;
 };
 
 const LIGHT_PILOT_NAMES = [
@@ -1380,10 +1376,16 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (gp) {
         const lx = gp.axes[0] || 0;
         const ly = gp.axes[1] || 0;
-        const deadzone = 0.15;
-
-        if (Math.abs(lx) > deadzone) gpAx = lx;
-        if (Math.abs(ly) > deadzone) gpAy = ly;
+        // Radial deadzone with magnitude rescaling — smooth circular analog control:
+        // a small tilt nudges gently, a full tilt pushes at max. No square-corner snapping.
+        const mag = Math.hypot(lx, ly);
+        const deadzone = 0.12;
+        if (mag > deadzone) {
+          const scaled = (mag - deadzone) / (1 - deadzone); // 0..1
+          const norm = Math.min(1, scaled) ** 1.4;          // ease for finer low-end control
+          gpAx = (lx / mag) * norm;
+          gpAy = (ly / mag) * norm;
+        }
 
         // Button 4 is L1 (Left Shoulder) and Button 3 is Y/Triangle
         const l1Pressed = gp.buttons[4] && gp.buttons[4].pressed;
@@ -1645,10 +1647,15 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       if (gp2) {
         const lx2 = gp2.axes[0] || 0;
         const ly2 = gp2.axes[1] || 0;
-        const deadzone = 0.15;
-
-        if (Math.abs(lx2) > deadzone) gpAx2 = lx2;
-        if (Math.abs(ly2) > deadzone) gpAy2 = ly2;
+        // Radial deadzone with magnitude rescaling — smooth circular analog control.
+        const mag2 = Math.hypot(lx2, ly2);
+        const deadzone = 0.12;
+        if (mag2 > deadzone) {
+          const scaled2 = (mag2 - deadzone) / (1 - deadzone);
+          const norm2 = Math.min(1, scaled2) ** 1.4;
+          gpAx2 = (lx2 / mag2) * norm2;
+          gpAy2 = (ly2 / mag2) * norm2;
+        }
 
         const l1Pressed2 = gp2.buttons[4] && gp2.buttons[4].pressed;
         const yPressed2 = gp2.buttons[3] && gp2.buttons[3].pressed;
@@ -2044,8 +2051,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         ship.vx += Math.cos(dodgeAngle) * 0.25;
         ship.vy += Math.sin(dodgeAngle) * 0.25;
 
-        // Trigger shield/dash if ready
-        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType)) {
+        // Trigger shield/dash only occasionally (bots conserve specials, and mostly just dash away)
+        if (ship.specialType === 'shield' && Math.random() < 0.15 && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType) * 1.8) {
           triggerSpecialMove(ship);
         } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
           triggerSpeedBoost(ship);
@@ -2078,8 +2085,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       ship.isChased = isChasedByEnemy;
       
       if (isChasedByEnemy && activeChaser) {
-        // Actively chased! Trigger immediate defensive dash/shield if available
-        if (ship.specialType === 'shield' && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType)) {
+        // Actively chased! Mostly just dash away; only rarely pop a defensive shield
+        if (ship.specialType === 'shield' && Math.random() < 0.18 && now - (ship.lastSpecialTime || 0) >= getSpecialCooldown(ship.specialType) * 1.8) {
           triggerSpecialMove(ship);
         } else if (ship.boostType === 'dash' && now - (ship.lastBoostTime || 0) >= 5000) {
           triggerSpeedBoost(ship);
@@ -2114,32 +2121,33 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             zigzagOffset = Math.sin((ship.zigzagTimer) * 0.2) * 0.35 * (ship.zigzagDirection || 1);
           }
 
-          ship.angle += (diff + zigzagOffset) * 0.09;
+          // Sluggish, dumb aim tracking so the player can out-turn them easily
+          ship.angle += (diff + zigzagOffset) * 0.045;
 
-          // Speed Boost logic (5s reload)
+          // Speed Boost logic — bots roam/reposition a lot (keeps them moving)
           const lastBoost = ship.lastBoostTime || 0;
-          if (now - lastBoost >= 5000) {
+          if (now - lastBoost >= 6500) {
             const targetBoosting = target.boostActiveTimer !== undefined && target.boostActiveTimer > 0;
-            if (dist > 500 || targetBoosting) {
+            if (dist > 450 || targetBoosting) {
               triggerSpeedBoost(ship);
             }
           }
 
-          // Bomb Special Power Logic (5s reload)
+          // Bomb Special Power Logic — bots rarely bother with bombs now
           const lastBomb = ship.lastBombTime || 0;
-          if (now - lastBomb >= 5000) {
-            if (dist > 180 && dist < 420 && Math.abs(diff) < 0.35) {
+          if (now - lastBomb >= 11000 && Math.random() < 0.25) {
+            if (dist > 180 && dist < 420 && Math.abs(diff) < 0.3) {
               fireLaser(ship, true); // true = isBomb
               ship.lastBombTime = now;
             }
           }
 
-          // Special Move logic (13s reload for beam, 7s for shield)
+          // Special Move logic — bots use heavy specials only occasionally
           const lastSpecial = ship.lastSpecialTime || 0;
-          if (now - lastSpecial >= getSpecialCooldown(ship.specialType)) {
-            if (ship.specialType === 'beam' && dist < 650 && Math.abs(diff) < 0.2) {
+          if (now - lastSpecial >= getSpecialCooldown(ship.specialType) * 1.8 && Math.random() < 0.2) {
+            if (ship.specialType === 'beam' && dist < 600 && Math.abs(diff) < 0.15) {
               triggerSpecialMove(ship);
-            } else if (ship.specialType === 'shield' && (ship.hp < ship.maxHp * 0.45 || dist < 250)) {
+            } else if (ship.specialType === 'shield' && (ship.hp < ship.maxHp * 0.4 || dist < 220)) {
               triggerSpecialMove(ship);
             }
           }
@@ -2166,12 +2174,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             }
           }
 
-          if (Math.random() < 0.06) {
-            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 2;
-            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 2;
+          // Restless wandering — bots juke and drift around far more than before
+          if (Math.random() < 0.18) {
+            ship.vx += Math.cos(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 3.2;
+            ship.vy += Math.sin(ship.angle + Math.PI / 2) * (Math.random() - 0.5) * 3.2;
           }
 
-          if (dist < ship.stats.range && Math.abs(diff) < 0.4 && now - ship.lastShotTime >= ship.stats.rate * (1.2 + Math.random() * 0.5)) {
+          // Loose aim cone but they shoot much less frequently (easy to dodge)
+          if (dist < ship.stats.range && Math.abs(diff) < 0.32 && now - ship.lastShotTime >= ship.stats.rate * (2.6 + Math.random() * 1.6)) {
             fireLaser(ship);
             ship.lastShotTime = now;
           }
@@ -2928,18 +2938,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       return;
     }
 
+    // AI ships aim imperfectly (easy to dodge); the player always fires precisely.
+    const aimAngle = ship.isPlayer ? ship.angle : ship.angle + (Math.random() - 0.5) * 0.26;
+
     // Millennium Falcon has dual turrets!
     if (ship.defId === 'falcon') {
-      const offsetL = ship.angle - Math.PI / 2;
-      const offsetR = ship.angle + Math.PI / 2;
-      
-      const lx1 = ship.x + Math.cos(ship.angle) * 12 + Math.cos(offsetL) * 10;
-      const ly1 = ship.y + Math.sin(ship.angle) * 12 + Math.sin(offsetL) * 10;
-      const lx2 = ship.x + Math.cos(ship.angle) * 12 + Math.cos(offsetR) * 10;
-      const ly2 = ship.y + Math.sin(ship.angle) * 12 + Math.sin(offsetR) * 10;
+      const offsetL = aimAngle - Math.PI / 2;
+      const offsetR = aimAngle + Math.PI / 2;
 
-      const vx = Math.cos(ship.angle) * LASER_SPEED;
-      const vy = Math.sin(ship.angle) * LASER_SPEED;
+      const lx1 = ship.x + Math.cos(aimAngle) * 12 + Math.cos(offsetL) * 10;
+      const ly1 = ship.y + Math.sin(aimAngle) * 12 + Math.sin(offsetL) * 10;
+      const lx2 = ship.x + Math.cos(aimAngle) * 12 + Math.cos(offsetR) * 10;
+      const ly2 = ship.y + Math.sin(aimAngle) * 12 + Math.sin(offsetR) * 10;
+
+      const vx = Math.cos(aimAngle) * LASER_SPEED;
+      const vy = Math.sin(aimAngle) * LASER_SPEED;
 
       state.lasers.push(
         {
@@ -2968,10 +2981,10 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       );
     } else {
-      const lx = ship.x + Math.cos(ship.angle) * 20;
-      const ly = ship.y + Math.sin(ship.angle) * 20;
-      const vx = Math.cos(ship.angle) * LASER_SPEED;
-      const vy = Math.sin(ship.angle) * LASER_SPEED;
+      const lx = ship.x + Math.cos(aimAngle) * 20;
+      const ly = ship.y + Math.sin(aimAngle) * 20;
+      const vx = Math.cos(aimAngle) * LASER_SPEED;
+      const vy = Math.sin(aimAngle) * LASER_SPEED;
 
       state.lasers.push({
         id: `las_${Math.random()}`,
@@ -3652,7 +3665,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   
   if (factionScores.lightKills > factionScores.darkKills && lightRatio > darkRatio) {
     factionWinnerMsg = 'LIGHT SIDE WINS (KILLS & RATIO)';
-    factionWinnerColor = 'text-emerald-400';
+    factionWinnerColor = 'text-sky-400';
   } else if (factionScores.darkKills > factionScores.lightKills && darkRatio > lightRatio) {
     factionWinnerMsg = 'DARK SIDE WINS (KILLS & RATIO)';
     factionWinnerColor = 'text-rose-500';
@@ -3706,7 +3719,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <Gamepad2 className="w-3.5 h-3.5" /> GP-ACTIVE
             </span>
           )}
-          <span className="text-emerald-400 flex items-center gap-1">
+          <span className="text-sky-400 flex items-center gap-1">
             REBELS: <span className="text-white crt-glow">{hud.lightKills}</span>
           </span>
           <span className="text-zinc-700">|</span>
@@ -3733,7 +3746,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName} (YOU)</span>
             <div className="flex gap-4">
               <span className="text-[9px] text-zinc-400">SCORE: <span className="text-white font-bold crt-glow">{hud.score}</span></span>
-              <span className="text-[9px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold crt-glow">{hud.kills}</span></span>
+              <span className="text-[9px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold crt-glow">{hud.kills}</span></span>
               <span className="text-[9px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold crt-glow">{hud.deaths}</span></span>
               <span className="text-[9px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold crt-glow">{'❤'.repeat(Math.max(playerLives, 0))} {playerLives}</span></span>
             </div>
@@ -3806,9 +3819,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
             {/* Shields */}
             <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl backdrop-blur-md w-[280px]">
-              <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELDS:</span>
+              <span className={`text-[10px] font-bold ${faction === 'light' ? 'text-sky-400' : 'text-rose-500'}`}>SHIELDS:</span>
               <div className="flex-1 h-2.5 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-                <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
+                <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-sky-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
               </div>
               <span className="text-[10px] font-bold text-white font-mono">{hud.hp}</span>
             </div>
@@ -3824,7 +3837,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName} (J1)</span>
               <div className="flex gap-4">
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud.score}</span></span>
-                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud.kills}</span></span>
+                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold">{hud.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud.deaths}</span></span>
                 <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives}❤</span></span>
               </div>
@@ -3849,9 +3862,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <div className="flex flex-col gap-2.5 bg-zinc-950/95 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md self-stretch pointer-events-auto">
                 {/* Shield Bar */}
                 <div className="flex items-center gap-2">
-                  <span className={`text-[8px] font-bold ${faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELD:</span>
+                  <span className={`text-[8px] font-bold ${faction === 'light' ? 'text-sky-400' : 'text-rose-500'}`}>SHIELD:</span>
                   <div className="flex-1 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-                    <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
+                    <div className={`h-full transition-all duration-300 ${faction === 'light' ? 'bg-sky-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent}%` }} />
                   </div>
                   <span className="text-[8px] font-bold text-white font-mono">{hud.hp}</span>
                 </div>
@@ -3891,7 +3904,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <span className="text-[7px] text-zinc-500 font-bold uppercase tracking-wider">{playerName2} (J2)</span>
               <div className="flex gap-4">
                 <span className="text-[8px] text-zinc-400">SCORE: <span className="text-white font-bold">{hud2.score}</span></span>
-                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-emerald-400 font-bold">{hud2.kills}</span></span>
+                <span className="text-[8px] text-zinc-400">KILLS: <span className="text-sky-400 font-bold">{hud2.kills}</span></span>
                 <span className="text-[8px] text-zinc-400">DEATHS: <span className="text-rose-400 font-bold">{hud2.deaths}</span></span>
                 <span className="text-[8px] text-zinc-400">LIVES: <span className="text-rose-400 font-bold">{playerLives2}❤</span></span>
               </div>
@@ -3916,9 +3929,9 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
               <div className="flex flex-col gap-2.5 bg-zinc-950/95 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md self-stretch pointer-events-auto">
                 {/* Shield Bar */}
                 <div className="flex items-center gap-2">
-                  <span className={`text-[8px] font-bold ${faction2 === 'light' ? 'text-emerald-400' : 'text-rose-500'}`}>SHIELD:</span>
+                  <span className={`text-[8px] font-bold ${faction2 === 'light' ? 'text-sky-400' : 'text-rose-500'}`}>SHIELD:</span>
                   <div className="flex-1 h-2 bg-zinc-900 rounded-md overflow-hidden border border-zinc-800">
-                    <div className={`h-full transition-all duration-300 ${faction2 === 'light' ? 'bg-emerald-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent2}%` }} />
+                    <div className={`h-full transition-all duration-300 ${faction2 === 'light' ? 'bg-sky-500' : 'bg-rose-600'}`} style={{ width: `${shieldPercent2}%` }} />
                   </div>
                   <span className="text-[8px] font-bold text-white font-mono">{hud2.hp}</span>
                 </div>
@@ -3981,7 +3994,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 onMouseEnter={() => setPauseSelect('resume')}
                 className={`w-full py-3 px-4 border text-[11px] font-bold tracking-widest uppercase transition-all flex items-center justify-between rounded-xl pointer-events-auto cursor-pointer ${
                   pauseSelect === 'resume'
-                    ? 'border-emerald-500 bg-emerald-950/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                    ? 'border-sky-500 bg-sky-950/20 text-sky-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
                     : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
                 }`}
               >
@@ -4039,7 +4052,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           <div className={`grid grid-cols-2 ${isTwoPlayers ? 'gap-2 max-w-[320px]' : 'md:grid-cols-4 gap-3 max-w-[660px]'} w-full p-2 border border-zinc-800 bg-zinc-950/80 rounded-2xl shadow-inner`}>
             {respawnShips.map((ship) => {
               const active = ship.id === respawnShipId;
-              const activeBorderCol = faction === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
+              const activeBorderCol = faction === 'light' ? 'border-sky-500 bg-sky-950/20' : 'border-rose-500 bg-rose-950/20';
               return (
                 <div
                   key={ship.id}
@@ -4112,7 +4125,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 respawnTimeLeft > 0 || playerLives <= 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction === 'light'
-                    ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                    ? 'bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
@@ -4148,7 +4161,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           <div className="grid grid-cols-2 gap-2 max-w-[320px] w-full p-2 border border-zinc-800 bg-zinc-950/80 rounded-2xl shadow-inner">
             {respawnShips2.map((ship) => {
               const active = ship.id === respawnShipId2;
-              const activeBorderCol = faction2 === 'light' ? 'border-emerald-500 bg-emerald-950/20' : 'border-rose-500 bg-rose-950/20';
+              const activeBorderCol = faction2 === 'light' ? 'border-sky-500 bg-sky-950/20' : 'border-rose-500 bg-rose-950/20';
               return (
                 <div
                   key={ship.id}
@@ -4221,7 +4234,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 respawnTimeLeft2 > 0 || playerLives2 <= 0
                   ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed'
                   : faction2 === 'light'
-                    ? 'bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                    ? 'bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-500 hover:to-sky-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
               }`}
             >
@@ -4289,7 +4302,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                           <span className={isPlayerRow ? 'text-sky-300' : 'text-zinc-300'}>{ship.name}</span>
                         </td>
                         <td className="py-2.5 px-4 uppercase text-[8px] font-bold">
-                          <span className={ship.faction === 'light' ? 'text-emerald-400' : 'text-rose-500'}>
+                          <span className={ship.faction === 'light' ? 'text-sky-400' : 'text-rose-500'}>
                             {ship.faction === 'light' ? 'rebels' : 'empire'}
                           </span>
                         </td>

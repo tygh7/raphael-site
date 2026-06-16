@@ -328,7 +328,7 @@ export function drawPixelShip(
       break;
     case 'jedi_interceptor':
       accentColor = '#fbbf24'; // Anakin's gold-yellow trim
-      glassColor = '#4ade80';  // Glowing green cockpit
+      glassColor = '#38bdf8';  // Glowing blue cockpit
       hullColor = '#475569';   // Dark steel hull
       break;
     case 'solar_sailer':
@@ -375,7 +375,7 @@ export function drawPixelShip(
   ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.16)' : 'rgba(239, 68, 68, 0.2)';
+  ctx.strokeStyle = faction === 'light' ? 'rgba(56, 189, 248, 0.24)' : 'rgba(239, 68, 68, 0.26)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
@@ -531,15 +531,15 @@ export function drawPixelShip(
     const avgX = sumX / cockpitPixels.length;
     const avgY = sumY / cockpitPixels.length;
 
-    const factionGlowColor = faction === 'light' ? 'rgba(56, 189, 248, 0.22)' : 'rgba(239, 68, 68, 0.26)';
-    const cockpitGlow = ctx.createRadialGradient(avgX, avgY, 1, avgX, avgY, size * 0.28);
+    const factionGlowColor = faction === 'light' ? 'rgba(56, 189, 248, 0.34)' : 'rgba(239, 68, 68, 0.34)';
+    const cockpitGlow = ctx.createRadialGradient(avgX, avgY, 1, avgX, avgY, size * 0.36);
     cockpitGlow.addColorStop(0, factionGlowColor);
-    cockpitGlow.addColorStop(0.4, factionGlowColor.replace(/[\d.]+\)$/, '0.08)'));
+    cockpitGlow.addColorStop(0.4, factionGlowColor.replace(/[\d.]+\)$/, '0.1)'));
     cockpitGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    
+
     ctx.fillStyle = cockpitGlow;
     ctx.beginPath();
-    ctx.arc(avgX, avgY, size * 0.28, 0, Math.PI * 2);
+    ctx.arc(avgX, avgY, size * 0.36, 0, Math.PI * 2);
     ctx.fill();
   }
 
