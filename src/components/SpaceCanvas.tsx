@@ -10,6 +10,7 @@ interface SpaceCanvasProps {
   onGameOver: (score: number, kills: number) => void;
   onExit: () => void;
   playerName?: string;
+  onKillFeed?: (message: string) => void;
 }
 
 const WORLD_SIZE = 8000;
@@ -75,7 +76,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   selectedShipId,
   onGameOver,
   onExit,
-  playerName = 'Rogue Leader'
+  playerName = 'Rogue Leader',
+  onKillFeed
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapRef = useRef<HTMLCanvasElement | null>(null);
@@ -780,11 +782,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
             killer.kills = (killer.kills || 0) + 1;
             if (killer.isPlayer) {
               state.score += ship.stats.shield * 10;
+              onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Space Bomb!`);
             }
           }
 
           if (ship.isPlayer) {
             setIsDead(true);
+            const killerName = killer ? killer.name : 'Unknown Enemy';
+            onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
           } else {
             const deadShip = ship;
             setTimeout(() => {
@@ -1763,11 +1768,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
+                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name} with a Super Beam!`);
                 }
               }
 
               if (ship.isPlayer) {
                 setIsDead(true);
+                const killerName = killer ? killer.name : 'Unknown Enemy';
+                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -1812,11 +1820,14 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
                 killer.kills = (killer.kills || 0) + 1;
                 if (killer.isPlayer) {
                   state.score += ship.stats.shield * 10;
+                  onKillFeed?.(`💥 Pilot ${playerName} destroyed ${ship.name}!`);
                 }
               }
 
               if (ship.isPlayer) {
                 setIsDead(true);
+                const killerName = killer ? killer.name : 'Unknown Enemy';
+                onKillFeed?.(`💀 Pilot ${playerName} was fainted by ${killerName}!`);
               } else {
                 const deadShip = ship;
                 setTimeout(() => {
@@ -1966,6 +1977,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
             if (ship.isPlayer) {
               setIsDead(true);
+              onKillFeed?.(`💀 Pilot ${playerName} crashed into an asteroid!`);
             } else {
               // Spawn explosion for AI
               spawnExplosion(ship.x, ship.y, '#eab308', 35);
