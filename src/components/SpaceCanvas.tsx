@@ -17,14 +17,18 @@ interface SpaceCanvasProps {
   faction2?: Faction;
   selectedShipId2?: string;
   playerName2?: string;
+
+  // 'battle' = full fleet skirmish (current mode).
+  // 'duel'   = 1v1: just player vs player (2P) or you vs a single bot (1P).
+  matchMode?: 'battle' | 'duel';
 }
 
-const WORLD_SIZE = 8000;
+const WORLD_SIZE = 5000;
 // Parallax star pattern repeats every STAR_TILE px and is tiled across the
 // whole (zoom-inflated) viewport, so the starfield fills the enlarged map.
 const STAR_TILE = 3000;
-const INITIAL_ASTEROIDS = 80;
-const LASER_SPEED = 9.5;
+const INITIAL_ASTEROIDS = 45;
+const LASER_SPEED = 13;
 const VIEW_ZOOM = 0.55; // <1 zooms the camera out for a wider battlefield view
 
 const LIGHT_PILOT_NAMES = [
@@ -93,7 +97,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
   isTwoPlayers,
   faction2 = 'dark',
   selectedShipId2 = 'tie_fighter',
-  playerName2 = 'SITH LORD'
+  playerName2 = 'SITH LORD',
+  matchMode = 'battle'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapRef = useRef<HTMLCanvasElement | null>(null);
@@ -599,24 +604,34 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
     }
     game.current.asteroids = asteroids;
 
-    // 3. Spawn Fleet AI (even number of fighters: 30 vs 30)
-    const teamSize = 30;
+    // 3. Spawn Fleet AI depending on the chosen match mode.
     const oppFaction = faction === 'light' ? 'dark' : 'light';
-    
-    // Spawn team AI (29 allies + player = 30)
-    for (let i = 0; i < teamSize - 1; i++) {
-      game.current.ships.push(createAiShipWithPilot(faction, i));
-    }
-    // Spawn opponent AI (30 enemies)
-    for (let i = 0; i < teamSize; i++) {
-      game.current.ships.push(createAiShipWithPilot(oppFaction, i));
+
+    if (matchMode === 'duel') {
+      // 1v1 mode. Two players => no AI at all (pure P1 vs P2).
+      // One player => spawn a single bot opponent.
+      if (!isTwoPlayers) {
+        game.current.ships.push(createAiShipWithPilot(oppFaction, 0));
+      }
+    } else {
+      // Battle mode: 10 fighters per side.
+      const teamSize = 10;
+      // Player(s) count toward their own team's slots.
+      const allyPlayers = isTwoPlayers && faction2 === faction ? 2 : 1;
+      for (let i = 0; i < teamSize - allyPlayers; i++) {
+        game.current.ships.push(createAiShipWithPilot(faction, i));
+      }
+      const oppPlayers = isTwoPlayers && faction2 === oppFaction ? 1 : 0;
+      for (let i = 0; i < teamSize - oppPlayers; i++) {
+        game.current.ships.push(createAiShipWithPilot(oppFaction, i));
+      }
     }
   };
 
   // Trigger setup on mount
   useEffect(() => {
     initGame();
-  }, [faction, difficulty]);
+  }, [faction, difficulty, matchMode]);
 
   // Set keyboard / mouse listeners
   useEffect(() => {
@@ -1273,8 +1288,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         }
       }
     } else {
-      // Protect from all incoming attacks for 5s (300 frames)
-      ship.shieldActiveTimer = 300;
+      // Protect from all incoming attacks for 2s (120 frames)
+      ship.shieldActiveTimer = 120;
 
       spawnExplosion(ship.x, ship.y, ship.faction === 'light' ? '#60a5fa' : '#f87171', 20);
 
@@ -1322,7 +1337,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax = 0;
       let ay = 0;
-      const accel = 0.22 * (isBoostActive ? 2.5 : 1.0);
+      const accel = 0.32 * (isBoostActive ? 2.5 : 1.0);
       const controlSign = faction === 'light' ? -1 : 1;
 
       // Poll Gamepad inputs if a controller is connected
@@ -1424,7 +1439,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player.vy *= 0.975;
 
       // Speed clamp (faster gameplay)
-      const maxSpeed = player.stats.speed * 0.64 * speedMultiplier;
+      const maxSpeed = player.stats.speed * 0.9 * speedMultiplier;
       const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
       if (currentSpeed > maxSpeed) {
         player.vx = (player.vx / currentSpeed) * maxSpeed;
@@ -1545,14 +1560,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       }
 
       if (!aimed) {
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
-          const screenCenterY = canvas.height / 2;
-          const dx = mousePos.current.x - screenCenterX;
-          const dy = mousePos.current.y - screenCenterY;
-          // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
-          player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+        // Keyboard thrust aims the ship along its travel direction, so WASD /
+        // arrows let you fire in any of the 8 directions (diagonals included).
+        // ax/ay are already in world space here, so no faction rotation needed.
+        if (ax !== 0 || ay !== 0) {
+          player.angle = Math.atan2(ay, ax);
+        } else {
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const screenCenterX = isTwoPlayers ? canvas.width / 4 : canvas.width / 2;
+            const screenCenterY = canvas.height / 2;
+            const dx = mousePos.current.x - screenCenterX;
+            const dy = mousePos.current.y - screenCenterY;
+            // If Light side, the screen is rotated 180 degrees, so we rotate the target angle by 180 degrees in world coordinates
+            player.angle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+          }
         }
       }
 
@@ -1596,7 +1618,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       let ax2 = 0;
       let ay2 = 0;
-      const accel2 = 0.22 * (isBoostActive2 ? 2.5 : 1.0);
+      const accel2 = 0.32 * (isBoostActive2 ? 2.5 : 1.0);
       const controlSign2 = faction2 === 'light' ? -1 : 1;
 
       // Poll Gamepad 2 inputs if connected
@@ -1676,7 +1698,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       player2.vy *= 0.975;
 
       // Speed clamp
-      const maxSpeed2 = player2.stats.speed * 0.64 * speedMultiplier2;
+      const maxSpeed2 = player2.stats.speed * 0.9 * speedMultiplier2;
       const currentSpeed2 = Math.sqrt(player2.vx * player2.vx + player2.vy * player2.vy);
       if (currentSpeed2 > maxSpeed2) {
         player2.vx = (player2.vx / currentSpeed2) * maxSpeed2;
@@ -2121,7 +2143,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
           const aiBoostActive = ship.boostActiveTimer !== undefined && ship.boostActiveTimer > 0;
           const aiSpeedMultiplier = aiBoostActive ? 3.0 : 1.0;
-          const aiMaxSpeed = ship.stats.speed * 0.66 * aiSpeedMultiplier;
+          const aiMaxSpeed = ship.stats.speed * 0.82 * aiSpeedMultiplier;
           const accelSpeed = aiMaxSpeed * 0.1 * (aiBoostActive ? 1.8 : 1.0);
 
           // Fly closer if far, orbit if close to make dogfights dynamic
@@ -2162,7 +2184,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         // Flee towards home base Y position, and away from threat
         const isLight = ship.faction === 'light';
         const homeX = WORLD_SIZE / 2;
-        const homeY = isLight ? 400 : 7600;
+        const homeY = isLight ? 400 : WORLD_SIZE - 400;
 
         let fleeAngle = 0;
         let threatDist = 99999;
@@ -2447,7 +2469,12 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
       for (const ship of state.ships) {
         if (ship.hp <= 0) continue; // Skip dead ships
         if (laser.ownerId === ship.id) continue; // Cannot hit itself
-        if (ship.faction === laser.faction) continue; // friendly-fire safety (works for players and AI)
+        // In a 2-player duel the two pilots must be able to hit each other even
+        // if they picked the same faction, so bypass friendly-fire for player-vs-player.
+        const ownerIsPlayer = laser.ownerId === state.playerShip?.id || laser.ownerId === state.player2Ship?.id;
+        const targetIsPlayer = ship.id === state.playerShip?.id || ship.id === state.player2Ship?.id;
+        const duelPvp = matchMode === 'duel' && isTwoPlayers && ownerIsPlayer && targetIsPlayer;
+        if (ship.faction === laser.faction && !duelPvp) continue; // friendly-fire safety (works for players and AI)
 
         const dx = ship.x - laser.x;
         const dy = ship.y - laser.y;

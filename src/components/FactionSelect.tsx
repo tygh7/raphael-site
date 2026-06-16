@@ -27,7 +27,8 @@ interface FactionSelectProps {
     faction2: Faction | null,
     shipId2: string | null,
     playerName2: string | null,
-    difficulty: Difficulty
+    difficulty: Difficulty,
+    matchMode: 'battle' | 'duel'
   ) => void;
 }
 
@@ -53,7 +54,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
   const [ship2, setShip2] = useState<string>('tie_fighter');
 
   const [difficulty, setDifficulty] = useState<Difficulty>('clone');
-  
+  const [matchMode, setMatchMode] = useState<'battle' | 'duel'>('battle');
+
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotateAngle = useRef(0);
 
@@ -146,7 +148,8 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
       faction2,
       playerCount === 2 ? ship2 : null,
       playerCount === 2 ? (name2.trim().toUpperCase() || defaultName2) : null,
-      chosenDifficulty
+      chosenDifficulty,
+      matchMode
     );
   };
 
@@ -487,6 +490,43 @@ export const FactionSelect: React.FC<FactionSelectProps> = ({ onLaunch }) => {
           <span className={`text-[9px] font-bold uppercase tracking-wider font-press ${accentColor} ${glowClass}`}>
             CONFIGURE OPPONENT FORCE INTELLIGENCE
           </span>
+        </div>
+
+        {/* Match Mode Selector */}
+        <div className="flex flex-col gap-3">
+          <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider font-press">
+            BATTLE MODE
+          </span>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setMatchMode('battle')}
+              className={`p-4 border-2 rounded-none cursor-pointer transition-all flex flex-col gap-1.5 text-left ${
+                matchMode === 'battle'
+                  ? 'border-zinc-400 bg-zinc-800/40 shadow-[0_0_12px_rgba(255,255,255,0.08)]'
+                  : 'border-zinc-850 bg-zinc-950/50 hover:border-zinc-600'
+              }`}
+            >
+              <span className="text-[9.5px] font-bold font-press text-white">BATTLE</span>
+              <span className="text-[7px] text-zinc-500 leading-relaxed font-press uppercase">
+                FULL 10 VS 10 FLEET SKIRMISH
+              </span>
+            </button>
+            <button
+              onClick={() => setMatchMode('duel')}
+              className={`p-4 border-2 rounded-none cursor-pointer transition-all flex flex-col gap-1.5 text-left ${
+                matchMode === 'duel'
+                  ? 'border-amber-400 bg-amber-900/20 shadow-[0_0_12px_rgba(245,158,11,0.12)]'
+                  : 'border-zinc-850 bg-zinc-950/50 hover:border-amber-700'
+              }`}
+            >
+              <span className="text-[9.5px] font-bold font-press text-amber-400">
+                {playerCount === 2 ? '1 VS 1 DUEL' : 'SOLO DUEL'}
+              </span>
+              <span className="text-[7px] text-zinc-500 leading-relaxed font-press uppercase">
+                {playerCount === 2 ? 'JUST PLAYER 1 VS PLAYER 2 — NO AI' : 'JUST YOU VS A SINGLE BOT'}
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

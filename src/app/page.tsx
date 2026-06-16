@@ -11,6 +11,7 @@ import confetti from 'canvas-confetti';
 export default function SpacePage() {
   const [gameMode, setGameState] = useState<'select' | 'battle'>('select');
   const [isTwoPlayers, setIsTwoPlayers] = useState<boolean>(false);
+  const [matchMode, setMatchMode] = useState<'battle' | 'duel'>('battle');
   
   const [faction, setFaction] = useState<Faction | null>(null);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
@@ -47,9 +48,11 @@ export default function SpacePage() {
     chosenFaction2: Faction | null,
     shipId2: string | null,
     name2: string | null,
-    chosenDifficulty: Difficulty
+    chosenDifficulty: Difficulty,
+    chosenMatchMode: 'battle' | 'duel'
   ) => {
     setIsTwoPlayers(chosenIsTwoPlayers);
+    setMatchMode(chosenMatchMode);
     setFaction(chosenFaction);
     setSelectedShipId(shipId);
     setPlayerName(name);
@@ -196,6 +199,7 @@ export default function SpacePage() {
                 faction2={faction2 || 'dark'}
                 selectedShipId2={selectedShipId2 || 'tie_fighter'}
                 playerName2={playerName2}
+                matchMode={matchMode}
               />
             )
           )}
