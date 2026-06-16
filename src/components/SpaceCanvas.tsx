@@ -1574,10 +1574,11 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         player.y = Math.max(50, Math.min(WORLD_SIZE - 50, player.y));
       }
 
-      // Aiming Direction — full 360° on every angle of the circle.
+      // Aiming Direction — follows target angle in 15-angles-per-quarter steps.
       // Priority: gamepad right stick > active mouse/trackpad > left stick /
       // keyboard travel direction > last mouse position.
       let aimed = false;
+      let targetAngle = player.angle;
 
       // 1. Gamepad right stick — twin-stick free aim (15 angles per quarter).
       if (gp) {
@@ -1585,7 +1586,7 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const ry = gp.axes[3] || 0;
         const rightStickDist = Math.sqrt(rx * rx + ry * ry);
         if (rightStickDist > 0.18) {
-          player.angle = snapAim(Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0));
+          targetAngle = Math.atan2(ry, rx) + (faction === 'light' ? Math.PI : 0);
           aimed = true;
         }
       }
@@ -1600,21 +1601,21 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const dx = mousePos.current.x - screenCenterX;
           const dy = mousePos.current.y - screenCenterY;
           // Light side screen is rotated 180°, so rotate the world target angle to match.
-          player.angle = snapAim(Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0));
+          targetAngle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
           aimed = true;
         }
       }
 
       // 3. Gamepad left stick movement direction (move-to-face, 15 angles per quarter).
       if (!aimed && gp && (gpAx !== 0 || gpAy !== 0)) {
-        player.angle = snapAim(Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0));
+        targetAngle = Math.atan2(gpAy, gpAx) + (faction === 'light' ? Math.PI : 0);
         aimed = true;
       }
 
       // 4. Keyboard thrust direction — WASD/arrows fire along travel, snapped to
       // the 60-direction aim grid (15 per quarter). ax/ay are world-space here.
       if (!aimed && (ax !== 0 || ay !== 0)) {
-        player.angle = snapAim(Math.atan2(ay, ax));
+        targetAngle = Math.atan2(ay, ax);
         aimed = true;
       }
 
@@ -1626,7 +1627,24 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
           const screenCenterY = canvas.height / 2;
           const dx = mousePos.current.x - screenCenterX;
           const dy = mousePos.current.y - screenCenterY;
-          player.angle = snapAim(Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0));
+          targetAngle = Math.atan2(dy, dx) + (faction === 'light' ? Math.PI : 0);
+        }
+      }
+
+      // Snap the target angle to our 15 angles per quarter (60-direction grid)
+      targetAngle = snapAim(targetAngle);
+
+      // Rotate player.angle progressively by steps of AIM_STEP towards targetAngle
+      let angleDiff = targetAngle - player.angle;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+
+      if (Math.abs(angleDiff) > 0.001) {
+        const stepLimit = 2 * AIM_STEP;
+        if (Math.abs(angleDiff) <= stepLimit) {
+          player.angle = targetAngle;
+        } else {
+          player.angle = snapAim(player.angle + Math.sign(angleDiff) * stepLimit);
         }
       }
 
@@ -1849,6 +1867,8 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
 
       // Aiming angle for Player 2 (15 angles per quarter)
       let aimed2 = false;
+      let targetAngle2 = player2.angle;
+
       if (gp2) {
         const rx2 = gp2.axes[2] || 0;
         const ry2 = gp2.axes[3] || 0;
@@ -1856,18 +1876,35 @@ export const SpaceCanvas: React.FC<SpaceCanvasProps> = ({
         const rightStickDist = Math.sqrt(rx2 * rx2 + ry2 * ry2);
 
         if (rightStickDist > rightDeadzone) {
-          player2.angle = snapAim(Math.atan2(ry2, rx2) + (faction2 === 'light' ? Math.PI : 0));
+          targetAngle2 = Math.atan2(ry2, rx2) + (faction2 === 'light' ? Math.PI : 0);
           aimed2 = true;
         } else if (gpAx2 !== 0 || gpAy2 !== 0) {
-          player2.angle = snapAim(Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0));
+          targetAngle2 = Math.atan2(gpAy2, gpAx2) + (faction2 === 'light' ? Math.PI : 0);
           aimed2 = true;
         }
       }
 
       // If playing on keyboard (no gamepad active) and moving, point the nose in the movement direction
       if (!aimed2 && (ax2 !== 0 || ay2 !== 0)) {
-        player2.angle = snapAim(Math.atan2(ay2, ax2));
+        targetAngle2 = Math.atan2(ay2, ax2);
         aimed2 = true;
+      }
+
+      // Snap the target angle for Player 2 to our 15 angles per quarter
+      targetAngle2 = snapAim(targetAngle2);
+
+      // Rotate player2.angle progressively by steps of AIM_STEP towards targetAngle2
+      let angleDiff2 = targetAngle2 - player2.angle;
+      while (angleDiff2 < -Math.PI) angleDiff2 += Math.PI * 2;
+      while (angleDiff2 > Math.PI) angleDiff2 -= Math.PI * 2;
+
+      if (Math.abs(angleDiff2) > 0.001) {
+        const stepLimit2 = 2 * AIM_STEP;
+        if (Math.abs(angleDiff2) <= stepLimit2) {
+          player2.angle = targetAngle2;
+        } else {
+          player2.angle = snapAim(player2.angle + Math.sign(angleDiff2) * stepLimit2);
+        }
       }
 
       // Engine particles
