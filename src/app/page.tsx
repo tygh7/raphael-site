@@ -10,9 +10,16 @@ import confetti from 'canvas-confetti';
 
 export default function SpacePage() {
   const [gameMode, setGameState] = useState<'select' | 'battle'>('select');
+  const [isTwoPlayers, setIsTwoPlayers] = useState<boolean>(false);
+  
   const [faction, setFaction] = useState<Faction | null>(null);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState<string>('ROGUE LEADER');
+  
+  const [faction2, setFaction2] = useState<Faction | null>(null);
+  const [selectedShipId2, setSelectedShipId2] = useState<string | null>(null);
+  const [playerName2, setPlayerName2] = useState<string>('SITH LORD');
+  
   const [difficulty, setDifficulty] = useState<Difficulty>('clone');
   
   // Game stats
@@ -32,26 +39,62 @@ export default function SpacePage() {
   }, []);
 
   // Handle ship launch
-  const handleLaunch = (chosenFaction: Faction, shipId: string, name: string, chosenDifficulty: Difficulty) => {
+  const handleLaunch = (
+    chosenIsTwoPlayers: boolean,
+    chosenFaction: Faction,
+    shipId: string,
+    name: string,
+    chosenFaction2: Faction | null,
+    shipId2: string | null,
+    name2: string | null,
+    chosenDifficulty: Difficulty
+  ) => {
+    setIsTwoPlayers(chosenIsTwoPlayers);
     setFaction(chosenFaction);
     setSelectedShipId(shipId);
     setPlayerName(name);
+    setFaction2(chosenFaction2);
+    setSelectedShipId2(shipId2);
+    setPlayerName2(name2 || 'SITH LORD');
     setDifficulty(chosenDifficulty);
     setGameState('battle');
 
     const shipName = shipId.replace('_', ' ').toUpperCase();
+    const shipName2 = shipId2 ? shipId2.replace('_', ' ').toUpperCase() : '';
     const diffLabel = chosenDifficulty === 'leila' ? 'LEILA (SUPER EASY)' 
                      : chosenDifficulty === 'c3po' ? 'C3-PO (EASY)' 
                      : chosenDifficulty === 'clone' ? 'CLONE WARS (MEDIUM)' 
                      : 'JAR JAR BINKS (HARDEST)';
 
-    setQuestHistory(prev => [
-      ...prev,
-      {
-        text: `🚀 PILOT ${name} LAUNCHED IN ${shipName} (${diffLabel}) FOR THE ${chosenFaction === 'light' ? 'LIGHT' : 'DARK'} SIDE!`,
-        type: chosenFaction
-      }
-    ]);
+    if (chosenIsTwoPlayers) {
+      setQuestHistory(prev => [
+        ...prev,
+        {
+          text: `🚀 TWO PLAYER COMBAT LAUNCHED!`,
+          type: 'system'
+        },
+        {
+          text: `🎮 PILOT 1: ${name} IN ${shipName} FOR THE ${chosenFaction === 'light' ? 'LIGHT' : 'DARK'} SIDE!`,
+          type: chosenFaction
+        },
+        {
+          text: `🎮 PILOT 2: ${name2} IN ${shipName2} FOR THE ${chosenFaction2 === 'light' ? 'LIGHT' : 'DARK'} SIDE!`,
+          type: chosenFaction2 || 'system'
+        },
+        {
+          text: `⚙️ DIFFICULTY LEVEL: ${diffLabel}`,
+          type: 'system'
+        }
+      ]);
+    } else {
+      setQuestHistory(prev => [
+        ...prev,
+        {
+          text: `🚀 PILOT ${name} LAUNCHED IN ${shipName} (${diffLabel}) FOR THE ${chosenFaction === 'light' ? 'LIGHT' : 'DARK'} SIDE!`,
+          type: chosenFaction
+        }
+      ]);
+    }
   };
 
   // Handle game over (death screen exit callback)
@@ -149,6 +192,10 @@ export default function SpacePage() {
                 onGameOver={handleGameOver}
                 onExit={() => setGameState('select')}
                 onKillFeed={(msg, type) => setQuestHistory(prev => [...prev, { text: msg.toUpperCase(), type: type || 'system' }])}
+                isTwoPlayers={isTwoPlayers}
+                faction2={faction2 || 'dark'}
+                selectedShipId2={selectedShipId2 || 'tie_fighter'}
+                playerName2={playerName2}
               />
             )
           )}
